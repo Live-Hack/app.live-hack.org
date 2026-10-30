@@ -273,6 +273,32 @@ def Client_gzip(path):
         return r.headers.get('Content-Encoding', '') or 'none'
 
 
+# ---------------------------------------------------------------- 02 shell UI
+def test_shell():
+    section('02 shell UI')
+    c = Client()
+    c.api('/auth/login', {'login': 'admin', 'password': PASSWORD})
+    for path in ['/', '/account/settings', '/nope']:
+        s, _, b = c.get(path)
+        check('class="header"' in b and 'class="footer"' in b, f'{path} has shared header and footer')
+        check('/assets/css/app.css?v=' in b and 'bootstrap-grid' not in b, f'{path} loads app.css, no bootstrap grid')
+        check(b.count('<script') == 1, f'{path} loads a single script')
+    sizes = {}
+    for a in ['css/main.css', 'css/app.css', 'css/bootstrap-reboot.min.css', 'js/app.js']:
+        s, h, b = c.get('/assets/' + a)
+        sizes[a] = len(b.encode())
+    check(sizes['js/app.js'] < 20_000, f"app.js under 20 KB ({sizes['js/app.js']})")
+    css = sizes['css/main.css'] + sizes['css/app.css'] + sizes['css/bootstrap-reboot.min.css']
+    check(css < 160_000, f'CSS under 160 KB raw ({css})')
+    s, _, b = c.get('/assets/css/main.css')
+    check('@import' not in b, 'no render-blocking @import in CSS')
+    check(b.count('{') == b.count('}'), 'main.css braces balanced')
+    s, _, b = c.get('/assets/css/app.css')
+    check(b.count('{') == b.count('}'), 'app.css braces balanced')
+    s, _, b = Client().get('/nope')
+    check(s == 404 and 'Sign in' in b, '404 page for anonymous has sign-in button')
+
+
 # ---------------------------------------------------------------- tenancy
 def test_tenancy():
     section('01 multi-tenant isolation')
@@ -301,7 +327,7 @@ def test_tenancy():
 
 if __name__ == '__main__':
     t0 = time.time()
-    for fn in [test_foundations, test_auth, test_tenancy]:
+    for fn in [test_foundations, test_auth, test_shell, test_tenancy]:
         try:
             fn()
         except Exception as e:  # a crash in a section is a failure, keep going

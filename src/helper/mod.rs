@@ -1,6 +1,7 @@
 pub mod config;
 pub mod crypto;
 pub mod database;
+pub mod markdown;
 pub mod migrate;
 pub mod ratelimit;
 pub mod request;
