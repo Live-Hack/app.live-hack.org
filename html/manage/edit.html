@@ -63,6 +63,25 @@
             </form>
 
             <div class="stack">
+                <form class="panel" data-api="/api/v1/manage/challenges/{{uuid}}/runtime" data-show-for-type="instance">
+                    <h2 class="panel__title">Lab</h2>
+                    <div class="stack">
+                        <label class="field"><span>Docker image</span><input class="input mono" name="image" value="{{rt_image}}" placeholder="registry.example.com/web-101:1.0" required></label>
+                        <div class="fields">
+                            <label class="field"><span>Port</span><input class="input" type="number" name="port" min="1" max="65535" value="{{rt_port}}" required></label>
+                            <label class="field"><span>Protocol</span><select class="select" name="protocol">{{{rt_proto_options}}}</select></label>
+                        </div>
+                        <div class="fields">
+                            <label class="field"><span>CPU (millicores)</span><input class="input" type="number" name="cpu_millis" min="50" max="8000" value="{{rt_cpu}}"></label>
+                            <label class="field"><span>Memory (MB)</span><input class="input" type="number" name="memory_mb" min="16" max="16384" value="{{rt_mem}}"></label>
+                            <label class="field"><span>Lifetime (min)</span><input class="input" type="number" name="ttl_minutes" min="5" max="1440" value="{{rt_ttl}}"></label>
+                        </div>
+                        <label class="field"><span>Environment (KEY=VALUE per line)</span><textarea class="textarea textarea--code" name="env" rows="3">{{rt_env}}</textarea><small>FLAG is injected by the platform: the challenge flag, or a unique one with the "per instance" flag check.</small></label>
+                        <label class="check"><input type="checkbox" name="readonly_rootfs" {{rt_ro}}> Read-only filesystem (writable /tmp)</label>
+                        <p class="form__msg" data-msg role="alert"></p>
+                        <button class="btn btn--ghost" type="submit">Save lab settings</button>
+                    </div>
+                </form>
                 <section class="panel">
                     <h2 class="panel__title">Files</h2>
                     <ul class="list-rows">{{{files}}}</ul>

@@ -121,6 +121,7 @@ pub async fn list(ctx: &Ctx) -> PageResult {
         difficulty: ctx.param("difficulty").to_string(),
         state: ctx.param("state").to_string(),
         sort: ctx.param("sort").to_string(),
+        ctype: ctx.param("type").to_string(),
         page: ctx.param("page").parse().unwrap_or(1).max(1),
         per_page: PER_PAGE,
     };
@@ -263,7 +264,29 @@ pub async fn detail(ctx: &Ctx, slug: &str) -> PageResult {
         v.set("url", c.static_url.as_str());
         files_html.push_str(&render("partials/chall_link.html", &v));
     }
-    if files_html.is_empty() {
+    let lab = if c.ctype == "instance" {
+        let rt = crate::models::instance::runtime(&c.uuid).await?;
+        let mut lv = Vars::new();
+        lv.set("uuid", c.uuid.as_str()).set(
+            "note",
+            match &rt {
+                Some(rt) => format!(
+                    "{} min, private to {}",
+                    rt.ttl_minutes,
+                    if ev.as_ref().is_some_and(|e| e.team_mode) {
+                        "your team"
+                    } else {
+                        "you"
+                    }
+                ),
+                None => "not configured yet".into(),
+            },
+        );
+        render("partials/lab.html", &lv)
+    } else {
+        String::new()
+    };
+    if files_html.is_empty() && lab.is_empty() {
         files_html = r#"<p class="muted">No files for this challenge.</p>"#.into();
     }
 
@@ -295,6 +318,7 @@ pub async fn detail(ctx: &Ctx, slug: &str) -> PageResult {
         .set("solves", solves.to_string())
         .set("description", markdown::render(&c.description))
         .set("files", files_html)
+        .set("instance", lab)
         .set(
             "authors",
             if authors.is_empty() {
@@ -366,4 +390,47 @@ pub async fn file(ctx: &Ctx, slug: &str, file_uuid: &str) -> PageResult {
         Some(path) if path.is_file() => Ok(RouteResult::File(path, f.filename)),
         _ => Ok(RouteResult::NotFound),
     }
+}
+
+/// Lab challenges open to the user, and their running labs.
+pub async fn labs(ctx: &Ctx) -> PageResult {
+    let user = match require_login(ctx) {
+        Ok(u) => u,
+        Err(r) => return Ok(r),
+    };
+    let f = Filter {
+        ctype: "instance".into(),
+        sort: "points".into(),
+        page: 1,
+        per_page: 200,
+        ..Default::default()
+    };
+    let (cards, total) = chall::list_practice(ctx.tenant_uuid(), &user.uuid, &f).await?;
+    let mut grid: String = cards
+        .iter()
+        .map(|c| card_html(c, &format!("/challenges/{}", c.slug)))
+        .collect();
+    if grid.is_empty() {
+        grid = r#"<div class="empty"><h3>No lab challenges yet</h3><p>Labs from live events are listed on each event page.</p></div>"#.into();
+    }
+    let mut running = String::new();
+    for (i, name, slug) in crate::models::instance::live_for_user(&user.uuid).await? {
+        let _ = write!(
+            running,
+            r#"<div class="notice notice--event lab-running"><span class="lab__dot is-on"></span> <b>{}</b> is {} until <time datetime="{}Z">{}</time>. <a href="/challenges/{}">Open</a></div>"#,
+            crate::helper::template::escape_html(&name),
+            i.status,
+            i.expires_at.format("%Y-%m-%d %H:%M:%S"),
+            i.expires_at.format("%Y-%m-%d %H:%M:%S"),
+            crate::helper::template::escape_html(&slug),
+        );
+    }
+    let mut v = Vars::new();
+    v.set("grid", grid)
+        .set("running", running)
+        .set("count", format!("{total} available"));
+    if !crate::helper::labs::enabled() {
+        v.set("disabled", r#"<div class="notice">Labs are not enabled on this platform: the organizers need to connect a Docker host.</div>"#);
+    }
+    page(ctx, "labs.html", "Labs", v)
 }

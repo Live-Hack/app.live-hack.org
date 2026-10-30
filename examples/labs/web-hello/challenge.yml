@@ -1,0 +1,18 @@
+# Import with: app_live_hack import examples/labs   (or zip the folder and use "Import zip")
+name: Hello lab
+category: web
+difficulty: easy
+value: 100
+type: instance
+description: |
+  Start your lab and read the page. Every player gets a different flag.
+flags:
+  - {type: per_instance, content: ""}
+instance:
+  image: livehack/example-web:latest
+  port: 8080
+  protocol: http
+  ttl: 30
+  memory: 64
+  cpu: 250
+  readonly: true

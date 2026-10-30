@@ -85,6 +85,8 @@ pub struct Filter {
     /// "", "solved" or "unsolved"
     pub state: String,
     pub sort: String,
+    /// "" or a challenge type (file / static / instance)
+    pub ctype: String,
     pub page: u32,
     pub per_page: u32,
 }
@@ -112,6 +114,10 @@ pub async fn list_practice(tenant: &str, viewer: &str, f: &Filter) -> DbResult<(
     if !f.difficulty.is_empty() {
         wh.push_str(" AND c.difficulty = ?");
         args.push(f.difficulty.as_str().into());
+    }
+    if !f.ctype.is_empty() {
+        wh.push_str(" AND c.ctype = ?");
+        args.push(f.ctype.as_str().into());
     }
     let solved_sql = "EXISTS(SELECT 1 FROM challs_solved s WHERE s.chall_uuid = c.uuid AND s.event_key = '' AND s.user_uuid = ?)";
     match f.state.as_str() {

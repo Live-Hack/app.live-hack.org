@@ -800,6 +800,130 @@ def test_events():
     check(s == 403, 'no registration after the end')
 
 
+# ---------------------------------------------------------------- 07 labs
+def docker(*args):
+    return subprocess.run(['docker', *args], capture_output=True, text=True)
+
+
+def wait_running(c, cu, timeout=90):
+    deadline = time.time() + timeout
+    d = {}
+    while time.time() < deadline:
+        s, d, _ = c.api(f'/challenges/{cu}/instance')
+        if d.get('state') in ('running', 'failed', 'none'):
+            return d
+        time.sleep(1)
+    return d
+
+
+def fetch(url):
+    try:
+        with urllib.request.urlopen(url, timeout=5) as r:
+            return r.read().decode()
+    except Exception as e:
+        return f'ERR {e}'
+
+
+def test_labs():
+    section('07 labs')
+    admin = Client(); admin.api('/auth/login', {'login': 'admin', 'password': PASSWORD})
+    p1 = Client(); p1.api('/auth/login', {'login': 'player1', 'password': PASSWORD})
+    ta = Client(); ta.api('/auth/login', {'login': 'tie-a', 'password': PASSWORD})
+    yml = open('examples/labs/web-hello/challenge.yml').read()
+    s, d = admin.raw('/manage/import', make_zip({'labs/web-hello/challenge.yml': yml}), 'application/zip')
+    check(s == 200 and d['imported'][0]['slug'] == 'hello-lab', 'example lab imports with its instance settings')
+    cu = d['imported'][0]['uuid']
+    check(sql(f"SELECT CONCAT(image, ':', port, ':', ttl_minutes, ':', readonly_rootfs) FROM challs_runtime WHERE chall_uuid='{cu}'") == 'livehack/example-web:latest:8080:30:1', 'runtime stored')
+    s, d, _ = p1.api(f'/challenges/{cu}/instance', {})
+    check(s == 404, 'no lab on a draft for players')
+    s, d, _ = admin.api(f'/manage/challenges/{cu}/status', {'status': 'published'})
+    check(s == 200, 'publish per-instance lab without a static flag')
+
+    s, d, _ = admin.api('/manage/challenges', {'name': 'Lab without image'})
+    nocfg = d['uuid']
+    admin.api(f'/manage/challenges/{nocfg}', {'name': 'Lab without image', 'ctype': 'instance', 'flag': 'LH{x}', 'points': 10})
+    s, d, _ = admin.api(f'/manage/challenges/{nocfg}/status', {'status': 'published'})
+    check(s == 400 and 'lab' in d['error'], 'cannot publish a lab challenge without its image')
+    s, d, _ = admin.api(f'/manage/challenges/{nocfg}/runtime', {'image': 'bad image', 'port': 80})
+    check(s == 400, 'invalid image reference refused')
+    s, d, _ = admin.api(f'/manage/challenges/{nocfg}/runtime', {'image': 'nginx', 'port': 80, 'env': 'FLAG=x'})
+    check(s == 400, 'FLAG cannot be overridden in env')
+
+    s, _, b = p1.get('/labs')
+    check(s == 200 and 'Hello lab' in b, 'labs page lists lab challenges')
+    s, _, b = p1.get('/challenges/hello-lab')
+    check('data-lab="/api/v1/challenges/' + cu + '/instance"' in b, 'challenge page has the lab widget')
+    s, d, _ = p1.api(f'/challenges/{cu}/submit', {'flag': 'LH{guess}'})
+    check(s == 400 and 'lab' in d['error'], 'per-instance flag needs a lab first')
+    s, d, _ = p1.api(f'/challenges/{cu}/instance')
+    check(d.get('state') == 'none', 'no lab yet')
+
+    s, d, _ = p1.api(f'/challenges/{cu}/instance', {})
+    check(s == 201 and d['state'] == 'starting', 'start lab')
+    s, d, _ = p1.api(f'/challenges/{cu}/instance', {})
+    check(d.get('state') in ('starting', 'running'), 'second start returns the same lab')
+    d1 = wait_running(p1, cu)
+    check(d1.get('state') == 'running' and d1['url'].startswith('http://localhost:'), f"lab running ({d1})")
+    page1 = fetch(d1.get('url', 'http://localhost:1'))
+    flag1 = page1.split('flag: ')[1].split('<')[0] if 'flag: ' in page1 else ''
+    check(flag1.startswith('LH{') and len(flag1) == 28, f'lab reachable and serves its own flag ({page1[:80]})')
+    check(sql(f"SELECT COUNT(*) FROM instances WHERE chall_uuid='{cu}' AND status IN ('starting','running')") == '1', 'one live lab for the player')
+
+    ta.api(f'/challenges/{cu}/instance', {})
+    d2 = wait_running(ta, cu)
+    page2 = fetch(d2.get('url', 'http://localhost:1'))
+    flag2 = page2.split('flag: ')[1].split('<')[0] if 'flag: ' in page2 else ''
+    check(d2.get('port') != d1.get('port') and flag2 and flag2 != flag1, 'second player gets another port and another flag')
+
+    c1 = sql(f"SELECT container_id FROM instances WHERE chall_uuid='{cu}' AND user_uuid=(SELECT uuid FROM users WHERE username='player1') AND status='running'")
+    c2 = sql(f"SELECT container_id FROM instances WHERE chall_uuid='{cu}' AND user_uuid=(SELECT uuid FROM users WHERE username='tie-a') AND status='running'")
+    i1 = json.loads(docker('inspect', c1).stdout or '[{}]')[0]
+    i2 = json.loads(docker('inspect', c2).stdout or '[{}]')[0]
+    n1 = set((i1.get('NetworkSettings') or {}).get('Networks', {}).keys())
+    n2 = set((i2.get('NetworkSettings') or {}).get('Networks', {}).keys())
+    check(n1 and n2 and not (n1 & n2), f'each lab on its own network ({n1} / {n2})')
+    hc = i1.get('HostConfig', {})
+    check(hc.get('Memory') == 64 * 1024 * 1024 and hc.get('NanoCpus') == 250_000_000 and hc.get('PidsLimit') == 256, 'resource limits applied')
+    check(hc.get('ReadonlyRootfs') is True and 'NET_RAW' in (hc.get('CapDrop') or []) and any('no-new-privileges' in x for x in hc.get('SecurityOpt') or []), 'hardening applied')
+    check('FLAG=' + flag1 in (i1.get('Config', {}).get('Env') or []), 'flag injected as $FLAG')
+
+    s, d, _ = ta.api(f'/challenges/{cu}/submit', {'flag': flag1})
+    check(d.get('status') == 'wrong', "another player's lab flag is refused")
+    check(sql(f"SELECT COUNT(*) FROM audit_log WHERE action='flag.shared' AND JSON_UNQUOTE(JSON_EXTRACT(meta, '$.chall'))='hello-lab'") == '1', 'flag sharing is logged for the organizers')
+    s, d, _ = p1.api(f'/challenges/{cu}/submit', {'flag': flag1})
+    check(d.get('status') == 'correct', 'own lab flag accepted')
+
+    # one lab at a time
+    s, d = admin.raw('/manage/import', make_zip({'l2/challenge.yml': yml.replace('Hello lab', 'Second lab').replace('# Import', '#') + ''}), 'application/zip')
+    cu2 = d['imported'][0]['uuid']
+    admin.api(f'/manage/challenges/{cu2}/status', {'status': 'published'})
+    s, d, _ = p1.api(f'/challenges/{cu2}/instance', {})
+    check(d.get('state') == 'elsewhere', 'one live lab per player across challenges')
+
+    # extend / stop
+    before = sql(f"SELECT expires_at FROM instances WHERE container_id='{c1}'")
+    s, d, _ = p1.api(f'/challenges/{cu}/instance/extend', {})
+    after = sql(f"SELECT expires_at FROM instances WHERE container_id='{c1}'")
+    check(s == 200 and after > before, 'extend pushes the expiry')
+    s, d, _ = p1.api(f'/challenges/{cu}/instance/stop', {})
+    check(d.get('state') == 'none' and docker('inspect', c1).returncode != 0, 'stop removes the container')
+    check(sql(f"SELECT status FROM instances WHERE container_id='{c1}'") == 'stopped', 'stopped in the database')
+
+    # expiry and orphan cleanup by the sweeper
+    sql(f"UPDATE instances SET expires_at = UTC_TIMESTAMP() - INTERVAL 1 MINUTE WHERE container_id='{c2}'")
+    docker('run', '-d', '--name', 'lh-orphan-test', '--label', 'org.livehack.instance=deadbeef', '--label', f'org.livehack.ns={PROJECT}', 'busybox:1.36', 'sleep', '600')
+    docker('run', '-d', '--name', 'lh-foreign-test', '--label', 'org.livehack.instance=deadbeef', '--label', 'org.livehack.ns=someone-else', 'busybox:1.36', 'sleep', '600')
+    deadline = time.time() + 30
+    while time.time() < deadline and (docker('inspect', c2).returncode == 0 or docker('inspect', 'lh-orphan-test').returncode == 0):
+        time.sleep(2)
+    check(docker('inspect', c2).returncode != 0 and sql(f"SELECT status FROM instances WHERE container_id='{c2}'") == 'stopped', 'expired lab removed by the sweeper')
+    check(docker('inspect', 'lh-orphan-test').returncode != 0, 'orphan lab container removed')
+    check(docker('inspect', 'lh-foreign-test').returncode == 0, "another deployment's labs are left alone")
+    docker('rm', '-f', 'lh-foreign-test')
+    s, d, _ = p1.api(f'/challenges/{nocfg}/instance')
+    check(s in (404, 503), 'unconfigured lab answers clearly')
+
+
 # ---------------------------------------------------------------- tenancy
 def test_tenancy():
     section('01 multi-tenant isolation')
@@ -828,7 +952,7 @@ def test_tenancy():
 
 if __name__ == '__main__':
     t0 = time.time()
-    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_scoreboard, test_events, test_tenancy]:
+    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_scoreboard, test_events, test_labs, test_tenancy]:
         try:
             fn()
         except Exception as e:  # a crash in a section is a failure, keep going

@@ -99,6 +99,9 @@ pub async fn set_status(ctx: &Ctx, uuid: &str, body: &Value) -> ApiResult {
         if c.flag.trim().is_empty() && c.flag_type != "per_instance" {
             return Err(bad("Set a flag before publishing."));
         }
+        if c.ctype == "instance" && crate::models::instance::runtime(&c.uuid).await?.is_none() {
+            return Err(bad("Configure the lab (image and port) before publishing."));
+        }
         if c.ctype == "static" && c.static_url.is_empty() {
             return Err(bad("An online challenge needs its URL before publishing."));
         }
@@ -284,4 +287,42 @@ pub async fn export(ctx: &Ctx, uuid: &str) -> HttpResponse {
             .body(bytes),
         Err(e) => crate::api::v1::core::respond(Err(err(StatusCode::INTERNAL_SERVER_ERROR, e))),
     }
+}
+
+pub async fn set_runtime(ctx: &Ctx, uuid: &str, body: &Value) -> ApiResult {
+    let (c, user) = managed(ctx, uuid).await?;
+    let num = |k: &str, d: i64| {
+        body.get(k)
+            .and_then(|v| v.as_i64().or_else(|| v.as_str()?.trim().parse().ok()))
+            .unwrap_or(d) as i32
+    };
+    let rt = crate::models::instance::Runtime {
+        image: field(body, "image").into(),
+        port: num("port", 0),
+        protocol: field(body, "protocol").into(),
+        cpu_millis: num("cpu_millis", 500),
+        memory_mb: num("memory_mb", 256),
+        ttl_minutes: num("ttl_minutes", 60),
+        env: body.get("env").and_then(Value::as_str).unwrap_or("").into(),
+        readonly_rootfs: body
+            .get("readonly_rootfs")
+            .and_then(|v| {
+                v.as_bool()
+                    .or_else(|| v.as_str().map(|s| s == "true" || s == "on"))
+            })
+            .unwrap_or(false),
+    }
+    .validate()
+    .map_err(bad)?;
+    crate::models::instance::set_runtime(&c.uuid, &rt).await?;
+    audit::log(
+        ctx.tenant_uuid(),
+        Some(&user.uuid),
+        "chall.runtime",
+        "chall",
+        Some(&c.uuid),
+        json!({ "image": rt.image }),
+    )
+    .await?;
+    ok(json!({ "ok": true, "message": "Lab settings saved." }))
 }

@@ -12,11 +12,33 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-livehack}
       SECURITY_CONTACT: ${SECURITY_CONTACT:-}
       DATA_DIR: /app/data
+      # labs: the app drives Docker through a filtered proxy, never the raw socket
+      DOCKER_HOST: tcp://docker-proxy:2375
+      INSTANCE_HOST: ${INSTANCE_HOST:-}
+      MAX_INSTANCES: ${MAX_INSTANCES:-50}
+      LABS_NAMESPACE: ${COMPOSE_PROJECT_NAME:-livehack}
+      SWEEP_SECONDS: ${SWEEP_SECONDS:-30}
     volumes:
       - app-data:/app/data
     depends_on:
       db:
         condition: service_healthy
+      docker-proxy:
+        condition: service_started
+    restart: unless-stopped
+
+  # Only the container, network and image APIs are reachable; no exec, no volumes, no swarm.
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      CONTAINERS: 1
+      NETWORKS: 1
+      IMAGES: 1
+      POST: 1
+      EXEC: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   db:

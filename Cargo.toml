@@ -25,6 +25,7 @@ regex = "1"
 actix-files = "0.6"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 serde_yaml = "0.9"
+bollard = "0.18"
 
 [profile.release]
 lto = "thin"

@@ -26,6 +26,7 @@ async fn route(ctx: &Ctx, segs: &[&str]) -> PageResult {
         ["auth", "reset"] => auth::reset_page(ctx).await,
         ["account", "settings"] => account::settings_page(ctx),
         ["challenges"] => challenges::list(ctx).await,
+        ["labs"] => challenges::labs(ctx).await,
         ["challenges", slug] => challenges::detail(ctx, slug).await,
         ["challenges", slug, "files", file, _name] => challenges::file(ctx, slug, file).await,
         ["scoreboard"] => score::scoreboard(ctx).await,

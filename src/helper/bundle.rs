@@ -33,6 +33,59 @@ pub struct Spec {
     pub files: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub state: String,
+    /// Lab settings for `type: instance`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance: Option<InstanceSpec>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct InstanceSpec {
+    pub image: String,
+    pub port: i32,
+    #[serde(default = "d_proto")]
+    pub protocol: String,
+    #[serde(default = "d_cpu")]
+    pub cpu: i32,
+    #[serde(default = "d_mem")]
+    pub memory: i32,
+    #[serde(default = "d_ttl")]
+    pub ttl: i32,
+    #[serde(default)]
+    pub env: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub readonly: bool,
+}
+fn d_proto() -> String {
+    "http".into()
+}
+fn d_cpu() -> i32 {
+    500
+}
+fn d_mem() -> i32 {
+    256
+}
+fn d_ttl() -> i32 {
+    60
+}
+
+impl InstanceSpec {
+    pub fn runtime(&self) -> crate::models::instance::Runtime {
+        crate::models::instance::Runtime {
+            image: self.image.clone(),
+            port: self.port,
+            protocol: self.protocol.clone(),
+            cpu_millis: self.cpu,
+            memory_mb: self.memory,
+            ttl_minutes: self.ttl,
+            env: self
+                .env
+                .iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            readonly_rootfs: self.readonly,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -192,6 +245,14 @@ pub async fn import(
             .fields()
             .validate()
             .map_err(|e| format!("{yml_path}: {e}"))?;
+        let runtime = match &spec.instance {
+            Some(i) => Some(
+                i.runtime()
+                    .validate()
+                    .map_err(|e| format!("{yml_path}: instance: {e}"))?,
+            ),
+            None => None,
+        };
         let base = yml_path
             .rsplit_once('/')
             .map(|(d, _)| format!("{d}/"))
@@ -234,6 +295,11 @@ pub async fn import(
                 true,
             ),
         };
+        if let Some(rt) = &runtime {
+            crate::models::instance::set_runtime(&uuid, rt)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
         let nfiles = blobs.len();
         for (name, data) in blobs {
             let s = storage::store_bytes(tenant, data)
@@ -305,6 +371,24 @@ pub async fn export(tenant: &str, c: &chall::Chall) -> Result<Vec<u8>, String> {
         } else {
             "hidden".into()
         },
+        instance: crate::models::instance::runtime(&c.uuid)
+            .await
+            .map_err(|e| e.to_string())?
+            .map(|rt| InstanceSpec {
+                image: rt.image.clone(),
+                port: rt.port,
+                protocol: rt.protocol.clone(),
+                cpu: rt.cpu_millis,
+                memory: rt.memory_mb,
+                ttl: rt.ttl_minutes,
+                env: rt
+                    .env_pairs()
+                    .iter()
+                    .filter_map(|l| l.split_once('='))
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+                readonly: rt.readonly_rootfs,
+            }),
     };
     let yml = serde_yaml::to_string(&spec).map_err(|e| e.to_string())?;
     let mut blobs = Vec::new();
@@ -358,6 +442,10 @@ flags:
 files:
   - dist/cookies.txt
 state: visible
+instance:
+  image: livehack/example-web:latest
+  port: 8080
+  env: {MODE: hard}
 "#;
         let s: Spec = serde_yaml::from_str(y).unwrap();
         let f = s.fields().validate().unwrap();
@@ -368,6 +456,16 @@ state: visible
         assert_eq!(f.flag_type, "case_insensitive");
         assert_eq!(f.flag, "LH{om_nom}");
         assert_eq!(s.files, vec!["dist/cookies.txt"]);
+        let rt = s.instance.unwrap().runtime().validate().unwrap();
+        assert_eq!(
+            (
+                rt.port,
+                rt.protocol.as_str(),
+                rt.ttl_minutes,
+                rt.env.as_str()
+            ),
+            (8080, "http", 60, "MODE=hard")
+        );
         let plain: Spec = serde_yaml::from_str("name: x\nflags: [\"LH{a}\"]\n").unwrap();
         assert_eq!(plain.fields().flag, "LH{a}");
         assert_eq!(plain.fields().points, 100);

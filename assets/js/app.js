@@ -341,5 +341,80 @@
     });
   });
 
+  // ---- lab widget: <div data-lab="/api/v1/challenges/<id>/instance"> ----
+  function labWidget(box) {
+    const url = box.dataset.lab;
+    const body = $('[data-lab-body]', box);
+    const dot = $('.lab__dot', box);
+    let poll = null, tick = null;
+    const el = (tag, cls, text) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, text != null ? { textContent: text } : {});
+    const button = (label, cls, path) => {
+      const b = el('button', `btn ${cls}`, label);
+      b.type = 'button';
+      b.addEventListener('click', async () => {
+        b.disabled = true; b.classList.add('is-loading');
+        const r = await api(url + path, {});
+        b.disabled = false; b.classList.remove('is-loading');
+        if (!r.ok) return toast(r.data.error || 'Something went wrong.', 'error', 6000);
+        if (r.data.message) toast(r.data.message);
+        render(r.data);
+      });
+      return b;
+    };
+    function render(d) {
+      clearTimeout(poll); clearInterval(tick);
+      body.textContent = '';
+      dot.className = 'lab__dot';
+      if (d.state === 'running') {
+        dot.classList.add('is-on');
+        const row = el('div', 'lab__url');
+        const input = el('input', 'input'); input.value = d.url; input.readOnly = true; input.id = 'lab-url';
+        row.append(input);
+        const copy = el('button', 'btn btn--ghost', 'Copy'); copy.type = 'button'; copy.dataset.copy = '#lab-url';
+        row.append(copy);
+        if (d.protocol === 'http') { const open = el('a', 'btn', 'Open'); open.href = d.url; open.target = '_blank'; open.rel = 'noopener'; row.append(open); }
+        const meta = el('div', 'lab__meta');
+        const left = el('b', null, '');
+        meta.append(document.createTextNode('Stops in '), left);
+        const end = Date.parse(d.expires_at);
+        const upd = () => {
+          let s = Math.max(0, Math.floor((end - Date.now()) / 1000));
+          left.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+          if (s === 0) { clearInterval(tick); setTimeout(load, 2000); }
+        };
+        upd(); tick = setInterval(upd, 1000);
+        const sp = el('span', 'spacer');
+        meta.append(sp);
+        if (d.can_extend) meta.append(button('Extend', 'btn--ghost btn--sm', '/extend'));
+        meta.append(button('Stop', 'btn--ghost btn--sm', '/stop'));
+        body.append(row, meta);
+      } else if (d.state === 'starting') {
+        dot.classList.add('is-busy');
+        body.append(el('p', 'muted', 'Starting your lab… the first start can take a minute while the image downloads.'));
+        poll = setTimeout(load, 1500);
+      } else if (d.state === 'elsewhere') {
+        body.append(el('p', 'muted', d.message));
+      } else {
+        if (d.state === 'failed') body.append(el('p', 'form__msg is-error', d.message));
+        body.append(button('Start lab', '', ''));
+      }
+    }
+    async function load() {
+      const r = await api(url);
+      if (!r.ok) { body.textContent = ''; body.append(el('p', 'muted', r.data.error || 'Lab unavailable.')); return; }
+      render(r.data);
+    }
+    load();
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    $$('[data-lab]').forEach(labWidget);
+    // editor: lab settings only for instance challenges
+    const ct = $('[data-ctype]');
+    if (ct) {
+      const sync = () => $$('[data-show-for-type]').forEach((f) => { f.hidden = f.dataset.showForType !== ct.value; });
+      ct.addEventListener('change', sync); sync();
+    }
+  });
+
   window.LH = { api, toast, go, after, $, $$ };
 })();

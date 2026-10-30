@@ -1,8 +1,10 @@
 use crate::api::v1::core::{ApiResult, bad, err, not_found, ok, require_user, too_many};
 use crate::helper::ratelimit;
 use crate::helper::request::{Ctx, field_raw};
+use crate::models::audit;
 use crate::models::chall::{self, Filter};
 use crate::models::event;
+use crate::models::instance;
 use crate::models::solve::{self, Scope, check_flag};
 use crate::models::user::Role;
 use actix_web::http::StatusCode;
@@ -16,6 +18,7 @@ pub async fn list(ctx: &Ctx) -> ApiResult {
         difficulty: ctx.param("difficulty").to_string(),
         state: ctx.param("state").to_string(),
         sort: ctx.param("sort").to_string(),
+        ctype: ctx.param("type").to_string(),
         page: ctx.param("page").parse().unwrap_or(1).max(1),
         per_page: ctx.param("per_page").parse().unwrap_or(50),
     };
@@ -83,8 +86,25 @@ pub async fn submit(ctx: &Ctx, uuid: &str, body: &Value) -> ApiResult {
         return ok(json!({ "status": "already_solved", "message": "Already solved." }));
     }
 
-    let expected = c.flag.clone();
-    let correct = check_flag(&c.flag_type, &expected, value);
+    // per-instance flags: compare with this scope's own lab, and catch flags copied from another lab
+    let expected = if c.flag_type == "per_instance" {
+        match instance::latest(&c.uuid, &scope, &u.uuid).await? {
+            Some(i) => i.flag,
+            None => return Err(bad("Start your lab first: its flag is unique to you.")),
+        }
+    } else {
+        c.flag.clone()
+    };
+    let mut correct = check_flag(&c.flag_type, &expected, value);
+    if !correct
+        && c.flag_type == "per_instance"
+        && let Some(owner) = instance::flag_owner(t, &c.uuid, value.trim()).await?
+        && owner.team_uuid.as_deref().unwrap_or(&owner.user_uuid) != scope.scope_key(&u.uuid)
+    {
+        audit::log(t, Some(&u.uuid), "flag.shared", "instance", Some(&owner.uuid),
+            json!({ "chall": c.slug, "submitted_by": u.uuid, "team": scope.team_uuid, "owner_user": owner.user_uuid, "owner_team": owner.team_uuid })).await?;
+        correct = false;
+    }
     solve::record_submission(t, &c.uuid, &u.uuid, &scope, value, correct, &ctx.ip).await?;
     if !correct {
         return ok(json!({ "status": "wrong", "message": "Wrong flag. Try again." }));

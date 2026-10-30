@@ -1,5 +1,7 @@
 use crate::api::v1::core::{self, ApiResult, err, not_found, respond};
-use crate::api::v1::{account, admin, auth, challenges, events, manage, manage_events, score};
+use crate::api::v1::{
+    account, admin, auth, challenges, events, labs, manage, manage_events, score,
+};
 use crate::helper::request::{Ctx, build, get_request_body};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, post, web};
@@ -18,6 +20,7 @@ async fn route_get(ctx: &Ctx, segs: &[&str]) -> ApiResult {
         ["account", "sessions"] => account::sessions(ctx).await,
         ["admin", "settings"] => admin::get_settings(ctx),
         ["challenges"] => challenges::list(ctx).await,
+        ["challenges", uuid, "instance"] => labs::status(ctx, uuid).await,
         ["scoreboard"] => score::scoreboard(ctx).await,
         ["events", slug, "scoreboard"] => events::scoreboard(ctx, slug).await,
         ["events", slug, "ctftime"] => events::ctftime(ctx, slug).await,
@@ -37,6 +40,10 @@ async fn route_post(ctx: &Ctx, segs: &[&str], body: &Value) -> ApiResult {
         ["account", "password"] => account::password(ctx, body).await,
         ["account", "sessions", "revoke"] => account::revoke_others(ctx).await,
         ["challenges", uuid, "submit"] => challenges::submit(ctx, uuid, body).await,
+        ["challenges", uuid, "instance"] => labs::start(ctx, uuid).await,
+        ["challenges", uuid, "instance", "extend"] => labs::extend(ctx, uuid).await,
+        ["challenges", uuid, "instance", "stop"] => labs::stop(ctx, uuid).await,
+        ["manage", "challenges", uuid, "runtime"] => manage::set_runtime(ctx, uuid, body).await,
         ["manage", "challenges"] => manage::create(ctx, body).await,
         ["manage", "challenges", uuid] => manage::update(ctx, uuid, body).await,
         ["manage", "challenges", uuid, "status"] => manage::set_status(ctx, uuid, body).await,

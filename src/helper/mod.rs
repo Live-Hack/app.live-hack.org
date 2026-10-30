@@ -2,6 +2,7 @@ pub mod bundle;
 pub mod config;
 pub mod crypto;
 pub mod database;
+pub mod labs;
 pub mod markdown;
 pub mod migrate;
 pub mod ratelimit;

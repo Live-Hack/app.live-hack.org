@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="labs-hero">
+            <span class="labs-hero__badge">Labs</span>
+            <h1 class="labs-hero__title">Your own target, on demand</h1>
+            <p class="labs-hero__text">Each lab starts a private environment for you (or your team during an event). It shuts down on its own when time runs out.</p>
+        </div>
+        {{{running}}}
+        <div class="section-head"><h2>Lab challenges</h2><span class="muted small">{{count}}</span></div>
+        <div class="grid grid--cards">{{{grid}}}</div>
+        {{{disabled}}}
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

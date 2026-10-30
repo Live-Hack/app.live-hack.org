@@ -21,7 +21,13 @@ pub async fn start() {
 /// Background housekeeping. Safe to run on every replica.
 pub fn spawn_background_tasks() {
     actix_web::rt::spawn(async {
-        let mut tick = actix_web::rt::time::interval(Duration::from_secs(30));
+        // first tick fires immediately: orphan labs from a crash are cleaned at boot
+        let mut tick = actix_web::rt::time::interval(Duration::from_secs(
+            std::env::var("SWEEP_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(30),
+        ));
         let mut n: u64 = 0;
         loop {
             tick.tick().await;
@@ -36,6 +42,7 @@ pub fn spawn_background_tasks() {
                 Ok(_) => {}
                 Err(e) => trace_error(format!("closing events: {e}")),
             }
+            crate::helper::labs::sweep().await;
             if n.is_multiple_of(20) {
                 let _ = ratelimit::cleanup().await;
                 let _ = session::cleanup().await;

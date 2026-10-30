@@ -156,7 +156,31 @@ pub async fn edit(ctx: &Ctx, uuid: &str) -> PageResult {
         String::new()
     };
 
+    let rt = crate::models::instance::runtime(&c.uuid).await?.unwrap_or(
+        crate::models::instance::Runtime {
+            protocol: "http".into(),
+            cpu_millis: 500,
+            memory_mb: 256,
+            ttl_minutes: 60,
+            ..Default::default()
+        },
+    );
     let mut v = Vars::new();
+    v.set("rt_image", rt.image.as_str())
+        .set(
+            "rt_port",
+            if rt.port > 0 {
+                rt.port.to_string()
+            } else {
+                String::new()
+            },
+        )
+        .set("rt_proto_options", options(&["http", "tcp"], &rt.protocol))
+        .set("rt_cpu", rt.cpu_millis.to_string())
+        .set("rt_mem", rt.memory_mb.to_string())
+        .set("rt_ttl", rt.ttl_minutes.to_string())
+        .set("rt_env", rt.env.as_str())
+        .set("rt_ro", if rt.readonly_rootfs { "checked" } else { "" });
     v.set("uuid", c.uuid.as_str())
         .set("slug", c.slug.as_str())
         .set("name", c.name.as_str())
