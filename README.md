@@ -1,43 +1,46 @@
 # Live Hack
 
-Open source platform to host CTF challenges and hands-on labs: publish challenges, run events, give each player their own lab instance.
+Open source platform to host CTF challenges and hands-on labs: publish challenges, run
+time-boxed events solo or in teams, and give every player their own lab to attack.
 
-> Status: early development (phase 00, foundations). See the roadmap for what is planned.
+- Challenges with files, URLs or per-player labs; static, case-insensitive, regex or per-lab flags
+- `challenge.yml` import/export compatible with ctfcli (CTFd challenge repos import as they are)
+- Events with teams, invite codes, scoreboard freeze, disqualification and a CTFtime feed
+- Labs: one container per player or team, isolated network, limits, unique flags, auto cleanup
+- Admin dashboard, audit log, multi-tenant from the ground up
+- Rust (actix-web) + MySQL, server-rendered pages, ~7 KB of compressed JavaScript
 
-## Run it locally
+## Quick start
 
 Requirements: Docker with the Compose plugin.
 
 ```bash
-git clone <this repo> && cd app.live-hack.org
-docker compose up --build
+git clone <this repository> live-hack && cd live-hack
+docker compose up -d --build
 ```
 
-Then open http://localhost:8080. The health check is at `/healthz`.
-
-To change ports or passwords, copy `.env.example` to `.env` and edit it.
-
-## Develop without Docker for the app
+Open http://localhost:8080 and create the admin account. Try the example lab:
 
 ```bash
-docker compose up -d db
-cargo run
+docker build -t livehack/example-web:latest examples/labs/web-hello
+docker compose exec app ./app_live_hack import examples/labs --publish
 ```
 
-The app reads its settings from environment variables (see `.env.example`); the defaults match the compose database.
-Database migrations live in `migrations/` and are applied at startup.
+## Documentation
 
-## Project layout
+Everything is in [`doc/`](doc/Home.md), mirrored to the GitHub wiki:
+[installation](doc/Installation.md), [configuration](doc/Configuration.md),
+[challenges](doc/Challenges.md), [challenge format](doc/Challenge-Format.md),
+[events](doc/Events-and-Teams.md), [labs](doc/Labs.md), [API](doc/API.md),
+[architecture](doc/Architecture.md), [security](doc/Security.md),
+[development](doc/Development.md).
 
-| Path | Content |
-|------|---------|
-| `src/web` | HTML pages: dispatcher and routes |
-| `src/api/v1` | JSON API under `/api/v1` |
-| `src/assets` | Static file server for `/assets` |
-| `src/helper` | Config, database, migrations, templating helpers |
-| `html/` | Page templates; `{{inject_x}}` includes `html/inject/x.html` |
-| `assets/` | CSS, JS, images |
-| `migrations/` | Numbered SQL files, applied once each |
+## Tests
+
+```bash
+cargo test          # unit tests
+tests/run.sh        # 300+ end-to-end checks against a fresh Docker instance
+```
 
 ## License
 

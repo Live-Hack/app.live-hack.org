@@ -20,6 +20,7 @@ COPY assets ./assets
 COPY html ./html
 COPY utils ./utils
 COPY migrations ./migrations
+COPY examples ./examples
 
 USER livehack
 EXPOSE 8080
