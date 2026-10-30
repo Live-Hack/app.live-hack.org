@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-livehack}
+      DB_USER: ${DB_USER:-livehack}
+      DB_PASSWORD: ${DB_PASSWORD:-livehack}
+      SECURITY_CONTACT: ${SECURITY_CONTACT:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-livehack}
+      MYSQL_USER: ${DB_USER:-livehack}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-livehack}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "${DB_USER:-livehack}", "-p${DB_PASSWORD:-livehack}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  db-data:
