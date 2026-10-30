@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head"><h1 class="page-head__title">Labs</h1><p class="page-head__text">{{state}} · public host <span class="mono">{{host}}</span> · {{max}} slots</p></div>
+        {{inject_admin_nav}}
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Challenge</th><th>Player / team</th><th>State</th><th class="num">Port</th><th>Started</th><th>Stops</th><th></th></tr></thead>
+                <tbody>{{{rows}}}</tbody>
+            </table>
+        </div>
+        <pre class="logs" data-logs-out hidden></pre>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

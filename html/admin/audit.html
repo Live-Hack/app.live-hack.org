@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head"><h1 class="page-head__title">Audit log</h1><p class="page-head__text">Who did what, newest first.</p></div>
+        {{inject_admin_nav}}
+        <div class="tabs">{{{tabs}}}</div>
+        <div class="table-wrap">
+            <table class="table table--audit">
+                <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+                <tbody>{{{rows}}}</tbody>
+            </table>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

@@ -4,7 +4,7 @@ use crate::helper::trace::trace_error;
 use crate::models::user;
 use crate::web::page::{PageResult, RouteResult, page_html};
 use crate::web::routes::{
-    account, auth, challenges, events, home, manage, manage_events, score, txt,
+    account, admin, auth, challenges, events, home, manage, manage_events, score, txt,
 };
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, web};
@@ -37,6 +37,12 @@ async fn route(ctx: &Ctx, segs: &[&str]) -> PageResult {
         ["manage", "events", "new"] => manage_events::edit(ctx, None).await,
         ["manage", "events", uuid] => manage_events::edit(ctx, Some(uuid)).await,
         ["users", name] => score::profile(ctx, name).await,
+        ["admin"] => admin::dashboard(ctx).await,
+        ["admin", "users"] => admin::users(ctx).await,
+        ["admin", "users", uuid] => admin::user_detail(ctx, uuid).await,
+        ["admin", "labs"] => admin::labs(ctx).await,
+        ["admin", "audit"] => admin::audit(ctx).await,
+        ["admin", "settings"] => admin::settings(ctx).await,
         ["manage"] | ["manage", "challenges"] => manage::list(ctx).await,
         ["manage", "challenges", uuid] => manage::edit(ctx, uuid).await,
         ["robots.txt"] => Ok(txt::robot()),

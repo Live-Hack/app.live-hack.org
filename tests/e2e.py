@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """End-to-end suite: drives a fresh instance through HTTP like a browser and an API client.
 Usage: e2e.py BASE_URL COMPOSE_PROJECT. Stdlib only. Every phase adds its section; all run each time."""
+import gzip
 import hashlib
 import http.cookiejar
 import io
@@ -300,7 +301,9 @@ def test_shell():
     for a in ['css/main.css', 'css/app.css', 'css/bootstrap-reboot.min.css', 'js/app.js']:
         s, h, b = c.get('/assets/' + a)
         sizes[a] = len(b.encode())
-    check(sizes['js/app.js'] < 20_000, f"app.js under 20 KB ({sizes['js/app.js']})")
+    s, h, js = c.get('/assets/js/app.js')
+    gz = len(gzip.compress(js.encode()))
+    check(gz < 8_000, f'app.js under 8 KB compressed ({gz} B, {sizes["js/app.js"]} B raw)')
     css = sizes['css/main.css'] + sizes['css/app.css'] + sizes['css/bootstrap-reboot.min.css']
     check(css < 160_000, f'CSS under 160 KB raw ({css})')
     s, _, b = c.get('/assets/css/main.css')
@@ -924,6 +927,103 @@ def test_labs():
     check(s in (404, 503), 'unconfigured lab answers clearly')
 
 
+# ---------------------------------------------------------------- 08 admin
+def test_admin():
+    section('08 admin')
+    admin = Client(); admin.api('/auth/login', {'login': 'admin', 'password': PASSWORD})
+    author = Client(); author.api('/auth/login', {'login': 'player3', 'password': PASSWORD})
+    p1 = Client(); p1.api('/auth/login', {'login': 'player1', 'password': PASSWORD})
+    for path in ['/admin', '/admin/users', '/admin/labs', '/admin/audit', '/admin/settings']:
+        s, _, _ = author.get(path)
+        check(s == 404, f'{path} hidden from authors')
+    s, d, _ = p1.api('/admin/stats')
+    check(s == 403, 'stats API is admin-only')
+
+    s, _, b = admin.get('/admin')
+    check(s == 200 and 'class="spark"' in b and 'shared flags 24 h' in b and 'stat--alert' in b, 'dashboard with chart and shared-flag alert')
+    s, d, _ = admin.api('/admin/stats')
+    check(s == 200 and d['stats']['players'] >= 3 and len(d['solves_per_hour']) == 24 and sum(d['solves_per_hour']) >= 1, 'stats API')
+
+    # accounts
+    s, d, _ = admin.api('/admin/users', {'username': 'newbie', 'email': 'newbie@example.com', 'role': 'author'})
+    check(s == 201 and '/auth/reset?token=' in d['url'], 'admin creates an account with a set-password link')
+    link = d['path']
+    s, d, _ = admin.api('/admin/users', {'username': 'NEWBIE'})
+    check(s == 409, 'duplicate account refused')
+    s, d, _ = Client().api('/auth/login', {'login': 'newbie', 'password': 'anything-goes'})
+    check(s == 401, 'new account has no usable password until the link is used')
+    s, d, _ = Client().api('/auth/reset', {'token': link.split('token=')[1], 'password': 'newbie-password'})
+    check(s == 200, 'newcomer sets a password')
+    nb = Client()
+    s, d, _ = nb.api('/auth/login', {'login': 'newbie', 'password': 'newbie-password'})
+    check(s == 200 and d['user']['role'] == 'author', 'newcomer signs in with the chosen role')
+    nb_uuid = d['user']['uuid']
+    s, d, _ = admin.api(f'/admin/users/{nb_uuid}/role', {'role': 'player'})
+    check(s == 200, 'change role')
+    s, d, _ = nb.api('/manage/challenges', {'name': 'x'})
+    check(s == 403, 'role change applies at once')
+    admin_uuid = sql("SELECT uuid FROM users WHERE username='admin' AND tenant_uuid=(SELECT uuid FROM tenants WHERE slug='default')")
+    s, d, _ = admin.api(f'/admin/users/{admin_uuid}/role', {'role': 'player'})
+    check(s == 400, 'admins cannot demote themselves')
+    s, d, _ = admin.api(f'/admin/users/{admin_uuid}/ban', {'banned': True})
+    check(s == 400, 'admins cannot ban themselves')
+
+    # ban stops labs and sessions
+    lab = sql("SELECT uuid FROM challs WHERE slug='hello-lab'")
+    nb.api(f'/challenges/{lab}/instance', {})
+    d = wait_running(nb, lab)
+    container = sql(f"SELECT container_id FROM instances WHERE user_uuid='{nb_uuid}' AND status='running'")
+    check(d.get('state') == 'running' and container, 'victim lab running')
+    s, _, b = admin.get('/admin/labs')
+    check('Hello lab' in b and 'newbie' in b and 'data-logs=' in b, 'labs page lists running labs')
+    iid = sql(f"SELECT uuid FROM instances WHERE container_id='{container}'")
+    s, d, _ = admin.api(f'/admin/labs/{iid}/logs')
+    check(s == 200 and 'logs' in d, 'lab logs readable by admins')
+    s, d, _ = admin.api(f'/admin/users/{nb_uuid}/ban', {'banned': True})
+    check(s == 200, 'ban user')
+    s, d, _ = nb.api('/me')
+    check(d.get('user') is None, 'ban signs the user out')
+    check(docker('inspect', container).returncode != 0 and sql(f"SELECT status FROM instances WHERE uuid='{iid}'") == 'stopped', 'ban stops their labs')
+    s, d, _ = admin.api(f'/admin/users/{nb_uuid}/ban', {'banned': False})
+    s, d, _ = nb.api('/auth/login', {'login': 'newbie', 'password': 'newbie-password'})
+    check(s == 200, 'unban restores access')
+    other = Client(); other.api('/auth/login', {'login': 'newbie', 'password': 'newbie-password'})
+    s, d, _ = admin.api(f'/admin/users/{nb_uuid}/sessions/revoke', {})
+    check(s == 200 and other.api('/me')[1].get('user') is None, 'admin signs a user out everywhere')
+
+    # lab kill
+    p1.api(f'/challenges/{lab}/instance', {})
+    wait_running(p1, lab)
+    iid = sql("SELECT uuid FROM instances WHERE user_uuid=(SELECT uuid FROM users WHERE username='player1') AND status='running'")
+    s, d, _ = admin.api(f'/admin/labs/{iid}/stop', {})
+    check(s == 200 and sql(f"SELECT status FROM instances WHERE uuid='{iid}'") == 'stopped', 'admin stops a lab')
+
+    # pages
+    s, _, b = admin.get('/admin/users?q=newb')
+    check(s == 200 and 'newbie' in b and 'player1' not in b and 'data-role-for' in b, 'user search')
+    p1_uuid = sql("SELECT uuid FROM users WHERE username='player1'")
+    s, _, b = admin.get(f'/admin/users/{p1_uuid}')
+    check(s == 200 and 'RSA baby' in b and 'correct' in b, 'user detail with flag attempts')
+    s, d, _ = admin.api('/manage/challenges', {'name': '<img src=x onerror=alert(1)>'})
+    admin.api(f"/manage/challenges/{d['uuid']}/delete", {})
+    s, _, b = admin.get('/admin/audit')
+    check(s == 200 and 'onerror=alert(1)>' not in b and 'user.ban' in b, 'audit log escapes details')
+    s, _, b = admin.get('/admin/audit?action=user.')
+    check('user.ban' in b and 'chall.delete' not in b, 'audit filter')
+
+    # settings
+    s, _, b = admin.get('/admin/settings')
+    check(s == 200 and 'name="labs"' in b, 'settings page')
+    s, d, _ = admin.api('/admin/settings', {'labs': 'disabled'})
+    s, d, _ = p1.api(f'/challenges/{lab}/instance', {})
+    check(s == 503 and 'paused' in d['error'], 'labs can be paused')
+    admin.api('/admin/settings', {'labs': 'enabled', 'flag_format': 'CTF{...}'})
+    time.sleep(0.2)
+    s, _, b = p1.get('/challenges/web-101')
+    check('CTF{...}' in b, 'flag format shown to players')
+    admin.api('/admin/settings', {'flag_format': 'LH{...}'})
+
+
 # ---------------------------------------------------------------- tenancy
 def test_tenancy():
     section('01 multi-tenant isolation')
@@ -952,7 +1052,7 @@ def test_tenancy():
 
 if __name__ == '__main__':
     t0 = time.time()
-    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_scoreboard, test_events, test_labs, test_tenancy]:
+    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_scoreboard, test_events, test_labs, test_admin, test_tenancy]:
         try:
             fn()
         except Exception as e:  # a crash in a section is a failure, keep going

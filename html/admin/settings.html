@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head"><h1 class="page-head__title">Settings</h1><p class="page-head__text">Applies to the whole platform.</p></div>
+        {{inject_admin_nav}}
+        <form class="panel panel--narrow" data-api="/api/v1/admin/settings" data-reload>
+            <div class="stack">
+                <label class="field"><span>Platform name</span><input class="input" name="site_name" value="{{site_name}}" maxlength="64" required></label>
+                <label class="field"><span>Flag format</span><input class="input mono" name="flag_format" value="{{flag_format}}" maxlength="64" required><small>Shown to players; "..." is replaced by the secret in per-lab flags, e.g. CTF{...}.</small></label>
+                <label class="field"><span>Registration</span><select class="select" name="registration">{{{reg_options}}}</select></label>
+                <label class="field"><span>Scoreboard</span><select class="select" name="scoreboard">{{{sb_options}}}</select></label>
+                <label class="field"><span>Labs</span><select class="select" name="labs">{{{labs_options}}}</select></label>
+                <p class="form__msg" data-msg role="alert"></p>
+                <button class="btn" type="submit">Save settings</button>
+            </div>
+        </form>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

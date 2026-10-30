@@ -86,6 +86,12 @@ pub async fn status(ctx: &Ctx, uuid: &str) -> ApiResult {
 
 pub async fn start(ctx: &Ctx, uuid: &str) -> ApiResult {
     let (c, rt, scope, user) = lab_context(ctx, uuid).await?;
+    if ctx.tenant.setting("labs") == "disabled" {
+        return Err(err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "The organizers have paused labs for now.",
+        ));
+    }
     if !labs::enabled() {
         return Err(err(
             StatusCode::SERVICE_UNAVAILABLE,

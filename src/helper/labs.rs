@@ -296,6 +296,29 @@ pub fn new_flag(format: &str) -> String {
     }
 }
 
+/// Last lines of a lab's output, for organizers.
+pub async fn logs(container: &str, lines: usize) -> Result<String, String> {
+    let d = DOCKER.as_ref().ok_or("Labs are not configured.")?;
+    let opts = bollard::container::LogsOptions::<String> {
+        stdout: true,
+        stderr: true,
+        tail: lines.to_string(),
+        ..Default::default()
+    };
+    let mut stream = d.logs(container, Some(opts));
+    let mut out = String::new();
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(c) => out.push_str(&c.to_string()),
+            Err(e) => return Err(e.to_string()),
+        }
+        if out.len() > 200_000 {
+            break;
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::new_flag;

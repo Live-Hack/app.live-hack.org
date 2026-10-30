@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head"><h1 class="page-head__title">Admin</h1><p class="page-head__text">Labs: {{labs_state}} · {{live_events}} live event(s)</p></div>
+        {{inject_admin_nav}}
+        <div class="stats stats--4">
+            <div class="stat"><b>{{players}}</b><span>players</span></div>
+            <div class="stat"><b>{{organizers}}</b><span>organizers</span></div>
+            <div class="stat"><b>{{published}}</b><span>published challenges</span></div>
+            <div class="stat"><b>{{drafts}}</b><span>drafts</span></div>
+            <div class="stat"><b>{{live_labs}}</b><span>labs running</span></div>
+            <div class="stat"><b>{{solves_24h}}</b><span>solves 24 h</span></div>
+            <div class="stat"><b>{{attempts_24h}}</b><span>attempts 24 h</span></div>
+            <div class="stat {{shared_class}}"><b>{{shared_24h}}</b><span>shared flags 24 h</span></div>
+        </div>
+        <section class="panel">
+            <div class="section-head section-head--in"><h2>Solves per hour</h2><span class="muted small">last 24 hours</span></div>
+            {{{spark}}}
+        </section>
+        <div class="grid grid--half">
+            <section class="panel">
+                <div class="section-head section-head--in"><h2>Live activity</h2><a href="/admin/audit">Audit log →</a></div>
+                <ul class="feed">{{{feed}}}</ul>
+            </section>
+            <section class="panel">
+                <div class="section-head section-head--in"><h2>Shared flags</h2><a href="/admin/audit?action=flag.shared">All →</a></div>
+                <ul class="feed">{{{shared}}}</ul>
+            </section>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

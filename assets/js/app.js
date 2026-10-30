@@ -416,5 +416,36 @@
     }
   });
 
+  // ---- admin ----
+  after.link = (data, el) => {
+    const box = $('[data-link-box]');
+    if (!box) return toast(data.url || data.message || 'Done.');
+    $('#link-out').value = data.url;
+    box.hidden = false;
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (data.message) toast(data.message);
+    if (el && el.tagName === 'FORM') el.reset();
+  };
+  document.addEventListener('change', async (e) => {
+    const sel = e.target.closest('select[data-role-for]');
+    if (!sel) return;
+    const { ok, data } = await api(`/api/v1/admin/users/${sel.dataset.roleFor}/role`, { role: sel.value });
+    toast(ok ? data.message : (data.error || 'Could not change the role.'), ok ? 'ok' : 'error');
+  });
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-logs]');
+    if (!b) return;
+    const out = $('[data-logs-out]');
+    out.hidden = false;
+    out.textContent = 'Loading…';
+    const { ok, data } = await api(b.dataset.logs);
+    out.textContent = ok ? (data.logs || '(no output)') : (data.error || 'Unavailable.');
+    out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    const p = location.pathname;
+    $$('.admin-nav a').forEach((a) => { if (a.getAttribute('href') === p) a.classList.add('is-active'); });
+  });
+
   window.LH = { api, toast, go, after, $, $$ };
 })();

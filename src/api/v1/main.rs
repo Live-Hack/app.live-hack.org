@@ -19,6 +19,8 @@ async fn route_get(ctx: &Ctx, segs: &[&str]) -> ApiResult {
         ["me"] => auth::me(ctx),
         ["account", "sessions"] => account::sessions(ctx).await,
         ["admin", "settings"] => admin::get_settings(ctx),
+        ["admin", "stats"] => admin::stats(ctx).await,
+        ["admin", "labs", uuid, "logs"] => admin::lab_logs(ctx, uuid).await,
         ["challenges"] => challenges::list(ctx).await,
         ["challenges", uuid, "instance"] => labs::status(ctx, uuid).await,
         ["scoreboard"] => score::scoreboard(ctx).await,
@@ -74,6 +76,11 @@ async fn route_post(ctx: &Ctx, segs: &[&str], body: &Value) -> ApiResult {
         ["admin", "settings"] => admin::set_settings(ctx, body).await,
         ["admin", "invites"] => admin::create_invite(ctx, body).await,
         ["admin", "users", uuid, "reset-link"] => admin::reset_link(ctx, uuid).await,
+        ["admin", "users"] => admin::create_user(ctx, body).await,
+        ["admin", "users", uuid, "role"] => admin::set_role(ctx, uuid, body).await,
+        ["admin", "users", uuid, "ban"] => admin::ban(ctx, uuid, body).await,
+        ["admin", "users", uuid, "sessions", "revoke"] => admin::revoke_sessions(ctx, uuid).await,
+        ["admin", "labs", uuid, "stop"] => admin::stop_lab(ctx, uuid).await,
         _ => Err(not_found()),
     }
 }

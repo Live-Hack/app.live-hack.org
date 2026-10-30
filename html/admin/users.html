@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head"><h1 class="page-head__title">Users</h1><p class="page-head__text">Registration is <b>{{registration}}</b>. Change it in <a href="/admin/settings">settings</a>.</p></div>
+        {{inject_admin_nav}}
+        <div class="grid grid--side">
+            <div class="stack">
+                <form class="toolbar" method="get" action="/admin/users" data-autosubmit>
+                    <input class="input" type="search" name="q" value="{{q}}" placeholder="Search by username or email…" aria-label="Search users">
+                </form>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead><tr><th>User</th><th>Role</th><th>Joined</th><th></th></tr></thead>
+                        <tbody>{{{rows}}}</tbody>
+                    </table>
+                </div>
+                <p class="muted small">{{count}} shown.</p>
+            </div>
+            <div class="stack">
+                <form class="panel" data-api="/api/v1/admin/users" data-then="link">
+                    <h2 class="panel__title">Create an account</h2>
+                    <div class="stack">
+                        <label class="field"><span>Username</span><input class="input" name="username" required minlength="3" maxlength="32"></label>
+                        <label class="field"><span>Email (optional)</span><input class="input" type="email" name="email"></label>
+                        <label class="field"><span>Role</span><select class="select" name="role"><option value="player">player</option><option value="author">author</option><option value="admin">admin</option></select></label>
+                        <p class="form__msg" data-msg role="alert"></p>
+                        <button class="btn" type="submit">Create and get a link</button>
+                    </div>
+                </form>
+                <form class="panel" data-api="/api/v1/admin/invites" data-then="link">
+                    <h2 class="panel__title">Invitation link</h2>
+                    <div class="stack">
+                        <div class="fields">
+                            <label class="field"><span>Uses</span><input class="input" type="number" name="uses" min="1" max="10000" value="30"></label>
+                            <label class="field"><span>Valid (hours)</span><input class="input" type="number" name="hours" min="1" max="2160" value="72"></label>
+                        </div>
+                        <p class="form__msg" data-msg role="alert"></p>
+                        <button class="btn btn--ghost" type="submit">Create invitation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

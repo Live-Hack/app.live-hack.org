@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <ul class="breadcrumb">
+            <li class="breadcrumb__item"><a href="/admin/users">Users</a></li>
+            <li class="breadcrumb__item breadcrumb__item--active">{{username}}</li>
+        </ul>
+        <div class="page-head page-head--row">
+            <div>
+                <h1 class="page-head__title">{{username}}</h1>
+                <p class="page-head__text">{{{status}}} {{role}} · {{email}} · joined {{{created}}}</p>
+            </div>
+            <div class="row-flex">
+                <a class="btn btn--ghost" href="{{profile}}">Public profile</a>
+                <button class="btn btn--ghost" type="button" data-post="/api/v1/admin/users/{{uuid}}/reset-link" data-then="link">Reset link</button>
+                <button class="btn btn--ghost" type="button" data-post="/api/v1/admin/users/{{uuid}}/sessions/revoke">Sign out everywhere</button>
+            </div>
+        </div>
+        {{inject_admin_nav}}
+        <section class="panel">
+            <h2 class="panel__title">Flag attempts</h2>
+            <div class="table-wrap table-wrap--flat">
+                <table class="table">
+                    <thead><tr><th>Challenge</th><th>Result</th><th>Scope</th><th>IP</th><th>When</th></tr></thead>
+                    <tbody>{{{rows}}}</tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>
