@@ -1,5 +1,5 @@
 use crate::api::v1::core::{self, ApiResult, err, not_found, respond};
-use crate::api::v1::{account, admin, auth, challenges};
+use crate::api::v1::{account, admin, auth, challenges, manage};
 use crate::helper::request::{Ctx, build, get_request_body};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, post, web};
@@ -33,6 +33,18 @@ async fn route_post(ctx: &Ctx, segs: &[&str], body: &Value) -> ApiResult {
         ["account", "password"] => account::password(ctx, body).await,
         ["account", "sessions", "revoke"] => account::revoke_others(ctx).await,
         ["challenges", uuid, "submit"] => challenges::submit(ctx, uuid, body).await,
+        ["manage", "challenges"] => manage::create(ctx, body).await,
+        ["manage", "challenges", uuid] => manage::update(ctx, uuid, body).await,
+        ["manage", "challenges", uuid, "status"] => manage::set_status(ctx, uuid, body).await,
+        ["manage", "challenges", uuid, "delete"] => manage::delete(ctx, uuid).await,
+        ["manage", "challenges", uuid, "files", file, "delete"] => {
+            manage::delete_file(ctx, uuid, file).await
+        }
+        ["manage", "challenges", uuid, "authors"] => manage::add_author(ctx, uuid, body).await,
+        ["manage", "challenges", uuid, "authors", name, "remove"] => {
+            manage::remove_author(ctx, uuid, name).await
+        }
+        ["manage", "preview"] => manage::preview(ctx, body),
         ["admin", "settings"] => admin::set_settings(ctx, body).await,
         ["admin", "invites"] => admin::create_invite(ctx, body).await,
         ["admin", "users", uuid, "reset-link"] => admin::reset_link(ctx, uuid).await,
@@ -49,7 +61,20 @@ pub async fn v1_get(path: web::Path<String>, req: HttpRequest) -> HttpResponse {
     let Some(ctx) = build(&req, &path, "GET").await else {
         return respond(Err(not_found()));
     };
-    respond(route_get(&ctx, &segments(&path)).await)
+    let segs = segments(&path);
+    if let ["manage", "challenges", uuid, "export"] = segs.as_slice() {
+        return manage::export(&ctx, uuid).await;
+    }
+    respond(route_get(&ctx, &segs).await)
+}
+
+/// Streamed bodies (file uploads, zip imports) skip the JSON body reader.
+async fn route_stream(ctx: &Ctx, segs: &[&str], payload: web::Payload) -> Option<ApiResult> {
+    Some(match segs {
+        ["manage", "challenges", uuid, "files"] => manage::upload(ctx, uuid, payload).await,
+        ["manage", "import"] => manage::import(ctx, payload).await,
+        _ => return None,
+    })
 }
 
 #[post("/{path:.*}")]
@@ -67,6 +92,17 @@ pub async fn v1_post(
             "Missing X-Requested-With: fetch header or cross-origin request.",
         )));
     }
+    let segs = segments(&path);
+    if matches!(
+        segs.as_slice(),
+        ["manage", "challenges", _, "files"] | ["manage", "import"]
+    ) {
+        return respond(
+            route_stream(&ctx, &segs, payload)
+                .await
+                .expect("matched above"),
+        );
+    }
     let body = get_request_body(payload).await;
-    respond(route_post(&ctx, &segments(&path), &body).await)
+    respond(route_post(&ctx, &segs, &body).await)
 }

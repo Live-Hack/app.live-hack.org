@@ -101,7 +101,9 @@
       return;
     }
     setBusy(el, true);
-    const { ok, data } = await api(el.dataset.post, {});
+    let body = {};
+    try { if (el.dataset.postJson) body = JSON.parse(el.dataset.postJson); } catch (err) { /* keep {} */ }
+    const { ok, data } = await api(el.dataset.post, body);
     setBusy(el, false);
     if (!ok) return toast(data.error || 'Something went wrong.', 'error');
     if (el.dataset.redirect !== undefined) return go(el.dataset.redirect || '/', data.message);
@@ -222,6 +224,90 @@
     $$('time[datetime]').forEach((t) => {
       const d = new Date(t.getAttribute('datetime').replace(' ', 'T'));
       if (!isNaN(d)) t.textContent = d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    });
+  });
+
+  // ---- organizer hooks ----
+  after.reload = (data) => go(location.href, data.message);
+  after.open = (data) => go(data.edit || location.href, data.message);
+
+  // raw-body upload with progress (no multipart)
+  function upload(url, file, onProgress) {
+    return new Promise((resolve) => {
+      const x = new XMLHttpRequest();
+      x.open('POST', url);
+      x.setRequestHeader('X-Requested-With', 'fetch');
+      x.setRequestHeader('Content-Type', 'application/octet-stream');
+      x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+      x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (e) {} resolve({ ok: x.status < 300, data: d }); };
+      x.onerror = () => resolve({ ok: false, data: { error: 'Network error during upload.' } });
+      x.send(file);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // file drop zones
+    $$('[data-upload]').forEach((zone) => {
+      const input = $('input[type=file]', zone);
+      const bar = $('progress', zone);
+      const send = async (files) => {
+        if (!files.length) return;
+        bar.hidden = false;
+        let done = 0;
+        for (const f of files) {
+          const url = zone.dataset.upload + '?name=' + encodeURIComponent(f.name);
+          const r = await upload(url, f, (p) => { bar.value = ((done + p) / files.length) * 100; });
+          if (!r.ok) { toast(`${f.name}: ${r.data.error || 'upload failed'}`, 'error', 6000); bar.hidden = true; return; }
+          done++;
+        }
+        go(location.href, `${done} file(s) uploaded.`);
+      };
+      input.addEventListener('change', () => send(Array.from(input.files)));
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('is-over'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('is-over'));
+      zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('is-over'); send(Array.from(e.dataTransfer.files)); });
+    });
+
+    // zip import
+    $$('input[data-import]').forEach((input) => input.addEventListener('change', async () => {
+      const f = input.files[0];
+      if (!f) return;
+      toast(`Importing ${f.name}…`);
+      const r = await upload('/api/v1/manage/import', f);
+      input.value = '';
+      if (!r.ok) return toast(r.data.error || 'Import failed.', 'error', 8000);
+      go(location.href, r.data.message);
+    }));
+
+    // markdown preview
+    $$('[data-md-tab]').forEach((b) => b.addEventListener('click', async () => {
+      const field = b.closest('.field');
+      const src = $('[data-md-src]', field), out = $('[data-md-out]', field);
+      $$('[data-md-tab]', field).forEach((x) => x.classList.toggle('is-active', x === b));
+      const preview = b.dataset.mdTab === 'preview';
+      if (preview) {
+        out.innerHTML = '<div class="skeleton" style="height:120px"></div>';
+        const { ok, data } = await api('/api/v1/manage/preview', { markdown: src.value });
+        out.innerHTML = ok ? data.html : '';
+      }
+      src.hidden = preview;
+      out.hidden = !preview;
+    }));
+
+    // challenge type → show the URL field only for "static"
+    $$('[data-ctype]').forEach((sel) => {
+      const sync = () => $$('[data-show-for]', sel.form).forEach((el) => { el.hidden = el.dataset.showFor !== sel.value; });
+      sel.addEventListener('change', sync);
+      sync();
+    });
+
+    // unsaved-changes marker
+    $$('form[data-dirty]').forEach((f) => {
+      const note = $('[data-dirty-note]', f);
+      let dirty = false;
+      f.addEventListener('input', () => { dirty = true; if (note) note.hidden = false; });
+      f.addEventListener('submit', () => { dirty = false; setTimeout(() => { if (note) note.hidden = true; }, 300); });
+      window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
     });
   });
 

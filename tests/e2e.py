@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """End-to-end suite: drives a fresh instance through HTTP like a browser and an API client.
 Usage: e2e.py BASE_URL COMPOSE_PROJECT. Stdlib only. Every phase adds its section; all run each time."""
+import hashlib
 import http.cookiejar
+import io
+import zipfile
 import json
 import re
 import subprocess
@@ -77,6 +80,16 @@ class Client:
         except ValueError:
             data = {'_raw': b[:200]}
         return s, data, h
+
+    def raw(self, path, data, ctype='application/octet-stream'):
+        req = urllib.request.Request(BASE + '/api/v1' + path, data=data, method='POST')
+        req.add_header('X-Requested-With', 'fetch')
+        req.add_header('Content-Type', ctype)
+        s, h, b = self._do(req)
+        try:
+            return s, json.loads(b or b'{}')
+        except ValueError:
+            return s, {'_raw': b[:200]}
 
     def cookie(self, name='lh_session'):
         return next((c.value for c in self.jar if c.name == name), None)
@@ -411,6 +424,153 @@ def test_challenges():
     check(s == 200 and d['total'] == 1 and d['challenges'][0]['solved'] is True and 'flag' not in d['challenges'][0], 'API list, no flag leak')
 
 
+# ---------------------------------------------------------------- 04 challenge management
+def make_zip(entries):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w') as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return buf.getvalue()
+
+
+def test_manage():
+    section('04 challenge management')
+    admin = Client(); admin.api('/auth/login', {'login': 'admin', 'password': PASSWORD})
+    p1 = Client(); p1.api('/auth/login', {'login': 'player1', 'password': PASSWORD})
+    sql("UPDATE users SET role='author' WHERE username IN ('player3', 'player-two')")
+    author = Client(); author.api('/auth/login', {'login': 'player3', 'password': PASSWORD})
+    co = Client(); co.api('/auth/login', {'login': 'player-two', 'password': PASSWORD})
+
+    s, _, _ = p1.get('/manage/challenges')
+    check(s == 404, 'players have no manage page')
+    s, h, _ = Client().get('/manage/challenges')
+    check(s == 303, 'manage needs login')
+    s, d, _ = p1.api('/manage/challenges', {'name': 'x'})
+    check(s == 403, 'players cannot create challenges')
+    s, _, b = author.get('/')
+    check('/manage/challenges' in b and 'href="/admin"' not in b, 'author menu has manage, not admin')
+
+    s, d, _ = author.api('/manage/challenges', {'name': 'Say "hi" <x>'})
+    check(s == 201 and d['slug'] == 'say-hi-x', 'author creates a draft')
+    cu = d['uuid']
+    s, d, _ = author.api('/manage/challenges', {'name': 'Say "hi" <x>'})
+    check(d.get('slug') == 'say-hi-x-2', 'slug made unique')
+    author.api(f"/manage/challenges/{d['uuid']}/delete", {})
+    s, _, b = author.get(f'/manage/challenges/{cu}')
+    check(s == 200 and 'value="Say &quot;hi&quot; &lt;x&gt;"' in b, 'editor escapes values in attributes')
+    base = {'name': 'Say hi', 'description': '**bold**', 'category': 'Web', 'difficulty': 'hard', 'points': 400,
+            'ctype': 'static', 'static_url': 'javascript:alert(1)', 'flag_type': 'static', 'flag': 'LH{hi}'}
+    s, d, _ = author.api(f'/manage/challenges/{cu}', base)
+    check(s == 400, 'javascript: URL refused')
+    s, d, _ = author.api(f'/manage/challenges/{cu}', {**base, 'static_url': 'https://hi.example.com', 'points': 'abc'})
+    check(s == 400, 'bad points refused')
+    s, d, _ = author.api(f'/manage/challenges/{cu}', {**base, 'static_url': 'https://hi.example.com', 'flag_type': 'regex', 'flag': '('})
+    check(s == 400, 'broken regex refused')
+    s, d, _ = author.api(f'/manage/challenges/{cu}', {**base, 'static_url': 'https://hi.example.com', 'flag': ''})
+    check(s == 200, 'save without flag as draft')
+    s, d, _ = author.api(f'/manage/challenges/{cu}/status', {'status': 'published'})
+    check(s == 400 and 'flag' in d['error'], 'cannot publish without a flag')
+    s, d, _ = author.api(f'/manage/challenges/{cu}', {**base, 'static_url': 'https://hi.example.com'})
+    check(s == 200, 'save full challenge')
+    check(sql(f"SELECT category FROM challs WHERE uuid='{cu}'") == 'web', 'category normalised')
+    s, d, _ = p1.api(f'/challenges/{cu}/submit', {'flag': 'LH{hi}'})
+    check(s == 404, 'draft hidden from players')
+    s, d, _ = author.api(f'/manage/challenges/{cu}/status', {'status': 'published'})
+    check(s == 200, 'publish')
+    s, _, b = p1.get('/challenges/say-hi-x')
+    check(s == 200 and 'https://hi.example.com' in b and '<strong>bold</strong>' in b, 'published challenge visible to players')
+    check(sql(f"SELECT COUNT(*) FROM audit_log WHERE target_uuid='{cu}'") >= '4', 'changes are audited')
+
+    # ownership
+    web = sql("SELECT uuid FROM challs WHERE slug='web-101'")
+    s, d, _ = author.api(f'/manage/challenges/{web}', base)
+    check(s == 404, "author cannot edit someone else's challenge")
+    s, _, _ = author.get(f'/manage/challenges/{web}')
+    check(s == 404, "author cannot open someone else's editor")
+    s, _, b = author.get('/manage/challenges')
+    check('Say hi' in b and 'Cookie' not in b, 'author sees only own challenges')
+    s, _, b = admin.get('/manage/challenges')
+    check('Say hi' in b and 'Cookie' in b, 'admin sees all challenges')
+    s, _, b = admin.get('/manage/challenges?status=draft')
+    check('Secret draft' in b and 'Say hi' not in b, 'status filter')
+
+    # files
+    data = b'\x00\x01pcap-data' * 1000
+    s, d = author.raw(f'/manage/challenges/{cu}/files?name=../../evil/dump.pcap', data)
+    check(s == 201 and d['name'] == 'dump.pcap' and d['sha256'] == hashlib.sha256(data).hexdigest() and d['size'] == len(data), 'raw upload stored with sha256, name cleaned')
+    fid = d['uuid']
+    s, h, b = p1.get(f'/challenges/say-hi-x/files/{fid}/dump.pcap')
+    check(s == 200 and len(b.encode('latin-1', 'replace')) > 0, 'uploaded file downloadable by players')
+    s, d = p1.raw(f'/manage/challenges/{cu}/files?name=x', b'x')
+    check(s == 403, 'players cannot upload')
+    s, d = author.raw(f'/manage/challenges/{web}/files?name=x', b'x')
+    check(s == 404, 'cannot upload to a foreign challenge')
+
+    # co-authors
+    s, d, _ = co.api(f'/manage/challenges/{cu}', base)
+    check(s == 404, 'non co-author refused')
+    s, d, _ = author.api(f'/manage/challenges/{cu}/authors', {'username': 'nobody-here'})
+    check(s == 400, 'unknown co-author refused')
+    s, d, _ = author.api(f'/manage/challenges/{cu}/authors', {'username': 'player-two'})
+    check(s == 200, 'co-author added')
+    s, d, _ = co.api(f'/manage/challenges/{cu}', {**base, 'static_url': 'https://hi.example.com', 'points': 450})
+    check(s == 200, 'co-author edits')
+    s, d, _ = co.api(f'/manage/challenges/{cu}/delete', {})
+    check(s == 403, 'co-author cannot delete')
+
+    # export
+    req = urllib.request.Request(BASE + f'/api/v1/manage/challenges/{cu}/export')
+    s, h, b = author._do(req)
+    z = zipfile.ZipFile(io.BytesIO(b))
+    names = z.namelist()
+    yml = z.read('say-hi-x/challenge.yml').decode()
+    check(s == 200 and 'say-hi-x/dist/dump.pcap' in names and 'name: Say hi' in yml and 'value: 450' in yml and 'LH{hi}' in yml, 'export zip in ctfcli format')
+    check(z.read('say-hi-x/dist/dump.pcap') == data, 'export contains the file bytes')
+
+    # import (ctfcli bundle with two challenges)
+    bundle = make_zip({
+        'pkg/heap/challenge.yml': 'name: Heap Party\ncategory: pwn\nvalue: 500\ndescription: smash it\nflags:\n  - {type: static, content: "LH{Heap}", data: case_insensitive}\nfiles:\n  - dist/heap.bin\nstate: visible\n',
+        'pkg/heap/dist/heap.bin': b'ELF...',
+        'pkg/osint/challenge.yml': 'name: Where am I\ncategory: osint\nvalue: 150\nflags: ["LH{paris}"]\n',
+    })
+    s, d = author.raw('/manage/import', bundle, 'application/zip')
+    check(s == 200 and len(d['imported']) == 2 and all(i['created'] for i in d['imported']), 'zip import creates challenges')
+    heap = next(i['uuid'] for i in d['imported'] if i['slug'] == 'heap-party')
+    check(sql(f"SELECT status FROM challs WHERE uuid='{heap}'") == 'published', 'state: visible publishes')
+    check(sql("SELECT status FROM challs WHERE slug='where-am-i'") == 'draft', 'no state stays draft')
+    s, d, _ = p1.api(f'/challenges/{heap}/submit', {'flag': 'lh{heap}'})
+    check(d.get('status') == 'correct', 'imported flag works (case-insensitive)')
+    heap_v2 = 'name: Heap Party\ncategory: pwn\nvalue: 501\nflags:\n  - {type: static, content: "LH{Heap}", data: case_insensitive}\nfiles:\n  - dist/heap.bin\nstate: visible\n'
+    s, d = author.raw('/manage/import', make_zip({'pkg/heap/challenge.yml': heap_v2, 'pkg/heap/dist/heap.bin': b'ELF2'}), 'application/zip')
+    check(s == 200 and not any(i['created'] for i in d['imported']), 're-import updates in place')
+    check(sql(f"SELECT points FROM challs WHERE uuid='{heap}'") == '501' and sql(f"SELECT COUNT(*) FROM challs_solved WHERE chall_uuid='{heap}'") == '1', 'update keeps solves')
+    check(sql(f"SELECT COUNT(*) FROM challs_files WHERE chall_uuid='{heap}'") == '1', 'files replaced, not duplicated')
+    s, d = co.raw('/manage/import', bundle, 'application/zip')
+    check(s == 400 and 'not one of its authors' in d['error'], "cannot overwrite others' challenges by import")
+    evil = make_zip({'c/challenge.yml': 'name: Evil\nflags: ["x"]\nfiles:\n  - ../../etc/passwd\n'})
+    s, d = author.raw('/manage/import', evil, 'application/zip')
+    check(s == 400 and sql("SELECT COUNT(*) FROM challs WHERE slug='evil'") == '0', 'path traversal in bundle refused, nothing created')
+    s, d = author.raw('/manage/import', b'not a zip', 'application/zip')
+    check(s == 400, 'non-zip refused')
+    s, d = author.raw('/manage/import', make_zip({'readme.txt': 'x'}), 'application/zip')
+    check(s == 400 and 'No challenge.yml' in d['error'], 'zip without challenge.yml refused')
+
+    # preview + delete
+    s, d, _ = author.api('/manage/preview', {'markdown': '# T\n<script>x</script>'})
+    check(s == 200 and '<script>' not in d['html'] and 'T</h1>' in d['html'], 'markdown preview is safe')
+    s, d, _ = author.api(f'/manage/challenges/{cu}/delete', {})
+    check(s == 200 and sql(f"SELECT COUNT(*) FROM challs WHERE uuid='{cu}'") == '0', 'owner deletes')
+    s, _, _ = p1.get(f'/challenges/say-hi-x/files/{fid}/dump.pcap')
+    check(s == 404, 'deleted challenge files gone')
+
+    # CLI import
+    t = subprocess.run(['docker', 'compose', '-p', PROJECT, 'exec', '-T', 'app', 'sh', '-c',
+                        'mkdir -p /app/data/bundle/crypto-1/dist && printf "name: CLI crypto\\ncategory: crypto\\nvalue: 75\\nflags: [\\"LH{cli}\\"]\\nfiles: [dist/key.pem]\\n" > /app/data/bundle/crypto-1/challenge.yml && printf "KEY" > /app/data/bundle/crypto-1/dist/key.pem && ./app_live_hack import /app/data/bundle --publish'],
+                       capture_output=True, text=True)
+    check(t.returncode == 0 and 'created cli-crypto (1 file(s))' in t.stdout, f'CLI import ({t.stdout.strip()[-80:]} {t.stderr.strip()[-200:]})')
+    check(sql("SELECT status FROM challs WHERE slug='cli-crypto'") == 'published', 'CLI --publish')
+
+
 # ---------------------------------------------------------------- tenancy
 def test_tenancy():
     section('01 multi-tenant isolation')
@@ -439,7 +599,7 @@ def test_tenancy():
 
 if __name__ == '__main__':
     t0 = time.time()
-    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_tenancy]:
+    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_tenancy]:
         try:
             fn()
         except Exception as e:  # a crash in a section is a failure, keep going

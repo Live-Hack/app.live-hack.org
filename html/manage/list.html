@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head page-head--row">
+            <div>
+                <h1 class="page-head__title">Manage challenges</h1>
+                <p class="page-head__text">Write, test and publish the challenges of this platform.</p>
+            </div>
+            <div class="row-flex">
+                <label class="btn btn--ghost" for="import-zip">Import zip</label>
+                <input id="import-zip" type="file" accept=".zip,application/zip" data-import hidden>
+                <button class="btn" type="button" data-post="/api/v1/manage/challenges" data-then="open">New challenge</button>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="tabs tabs--inline">{{{tabs}}}</div>
+            <form class="spacer" method="get" action="/manage/challenges" data-autosubmit>
+                <input type="hidden" name="status" value="{{status}}">
+                <input class="input" type="search" name="q" value="{{q}}" placeholder="Search by name or category…" aria-label="Search">
+            </form>
+        </div>
+
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Challenge</th><th>Category</th><th class="num">Points</th><th>Type</th><th>Status</th><th class="num">Solves</th><th>Updated</th><th></th></tr></thead>
+                <tbody>{{{rows}}}</tbody>
+            </table>
+        </div>
+        <p class="muted small">Import accepts a zip of folders, each with a ctfcli-style <code>challenge.yml</code>. Challenges with the same name are updated in place, solves are kept.</p>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

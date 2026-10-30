@@ -15,8 +15,17 @@ async fn main() -> std::io::Result<()> {
         fs::read_to_string("utils/ascii.art").unwrap_or_default()
     );
     init_trace();
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 {
+        start().await;
+        if let Some(code) = app_live_hack::cli::run(&args).await {
+            std::process::exit(code);
+        }
+    }
     trace_logs("Server is starting...".to_string());
-    start().await;
+    if args.len() <= 1 {
+        start().await;
+    }
     spawn_background_tasks();
 
     // No CORS layer: the front is served from the same origin as the API.

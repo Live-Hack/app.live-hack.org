@@ -4,3 +4,4 @@ pub mod auth;
 pub mod challenges;
 pub mod core;
 pub mod main;
+pub mod manage;

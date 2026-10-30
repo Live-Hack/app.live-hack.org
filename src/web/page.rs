@@ -53,12 +53,16 @@ fn base_vars(ctx: &Ctx, title: &str) -> Vars {
                         .to_string(),
                 )
                 .set("role", u.role.as_str());
+            let mut links = String::new();
             if u.role >= Role::Author {
-                m.set(
-                    "admin_link",
-                    r#"<li><a href="/admin"><span>Admin</span></a></li>"#,
+                links.push_str(
+                    r#"<li><a href="/manage/challenges"><span>Manage challenges</span></a></li>"#,
                 );
             }
+            if u.role >= Role::Admin {
+                links.push_str(r#"<li><a href="/admin"><span>Admin</span></a></li>"#);
+            }
+            m.set("admin_link", links);
             render("partials/user_menu.html", &m)
         }
         None => render("partials/signin.html", &Vars::new()),

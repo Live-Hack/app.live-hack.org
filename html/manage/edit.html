@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <ul class="breadcrumb">
+            <li class="breadcrumb__item"><a href="/manage/challenges">Manage challenges</a></li>
+            <li class="breadcrumb__item breadcrumb__item--active">{{name}}</li>
+        </ul>
+        <div class="page-head page-head--row">
+            <div>
+                <h1 class="page-head__title">{{name}}</h1>
+                <p class="page-head__text">{{{status_badge}}} <span class="mono">/challenges/{{slug}}</span></p>
+            </div>
+            <div class="row-flex">
+                <a class="btn btn--ghost" href="/challenges/{{slug}}" target="_blank" rel="noopener">Preview &amp; test flag</a>
+                <a class="btn btn--ghost" href="/api/v1/manage/challenges/{{uuid}}/export">Export zip</a>
+                {{{status_actions}}}
+            </div>
+        </div>
+
+        <div class="grid grid--side">
+            <form class="panel" data-api="/api/v1/manage/challenges/{{uuid}}" data-dirty>
+                <h2 class="panel__title">Details</h2>
+                <div class="stack">
+                    <label class="field"><span>Name</span>
+                        <input class="input" name="name" value="{{name}}" required maxlength="120"></label>
+                    <div class="fields">
+                        <label class="field"><span>Category</span>
+                            <input class="input" name="category" value="{{category}}" list="cats" maxlength="32">
+                            <datalist id="cats">{{{cat_datalist}}}</datalist></label>
+                        <label class="field"><span>Difficulty</span>
+                            <select class="select" name="difficulty">{{{diff_options}}}</select></label>
+                        <label class="field"><span>Points</span>
+                            <input class="input" name="points" type="number" min="0" max="100000" value="{{points}}"></label>
+                    </div>
+                    <div class="field">
+                        <span class="row-flex">Description <span class="spacer"></span>
+                            <span class="seg" role="tablist"><button type="button" class="is-active" data-md-tab="write">Write</button><button type="button" data-md-tab="preview">Preview</button></span></span>
+                        <textarea class="textarea" name="description" rows="14" data-md-src placeholder="Markdown: story, hints on where to look, how to connect…">{{description}}</textarea>
+                        <div class="md md-preview" data-md-out hidden></div>
+                    </div>
+                    <div class="fields">
+                        <label class="field"><span>Type</span>
+                            <select class="select" name="ctype" data-ctype>{{{ctype_options}}}</select>
+                            <small>file: downloads · static: one shared URL · instance: a lab per player</small></label>
+                        <label class="field" data-show-for="static"><span>Challenge URL</span>
+                            <input class="input" name="static_url" value="{{static_url}}" placeholder="https://chall.example.com:31337"></label>
+                    </div>
+                    <div class="fields">
+                        <label class="field"><span>Flag check</span>
+                            <select class="select" name="flag_type">{{{flag_type_options}}}</select></label>
+                        <label class="field"><span>Flag</span>
+                            <input class="input mono" name="flag" value="{{flag}}" placeholder="{{flag_format}}" autocomplete="off" spellcheck="false"></label>
+                    </div>
+                    <p class="form__msg" data-msg role="alert"></p>
+                    <div class="row-flex"><button class="btn" type="submit">Save</button><span class="muted small" data-dirty-note hidden>Unsaved changes</span></div>
+                </div>
+            </form>
+
+            <div class="stack">
+                <section class="panel">
+                    <h2 class="panel__title">Files</h2>
+                    <ul class="list-rows">{{{files}}}</ul>
+                    <label class="dropzone" data-upload="/api/v1/manage/challenges/{{uuid}}/files">
+                        <input type="file" multiple hidden>
+                        <span>Drop files here or <u>browse</u></span>
+                        <progress max="100" value="0" hidden></progress>
+                    </label>
+                </section>
+                <section class="panel">
+                    <h2 class="panel__title">Authors</h2>
+                    <ul class="list-rows">{{{authors}}}</ul>
+                    <form class="row-flex" data-api="/api/v1/manage/challenges/{{uuid}}/authors" data-reload>
+                        <input class="input spacer" name="username" placeholder="Username" required>
+                        <button class="btn btn--ghost" type="submit">Add</button>
+                    </form>
+                </section>
+                <section class="panel panel--danger">
+                    <h2 class="panel__title">Danger zone</h2>
+                    <div class="row-flex">
+                        {{{archive_action}}}
+                        <button class="btn btn--danger" type="button" data-post="/api/v1/manage/challenges/{{uuid}}/delete" data-confirm="Click again to delete" data-redirect="/manage/challenges">Delete</button>
+                    </div>
+                    <p class="muted small">Deleting also removes its files, solves and submissions.</p>
+                </section>
+            </div>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

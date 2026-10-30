@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod chall;
+pub mod manage;
 pub mod session;
 pub mod solve;
 pub mod token;
