@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 10001 livehack
 WORKDIR /app
+RUN mkdir -p /app/data && chown livehack /app/data
 
 COPY --from=build /app/target/release/app_live_hack ./app_live_hack
 COPY assets ./assets

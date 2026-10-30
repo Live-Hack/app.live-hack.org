@@ -11,6 +11,9 @@ services:
       DB_USER: ${DB_USER:-livehack}
       DB_PASSWORD: ${DB_PASSWORD:-livehack}
       SECURITY_CONTACT: ${SECURITY_CONTACT:-}
+      DATA_DIR: /app/data
+    volumes:
+      - app-data:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -34,3 +37,4 @@ services:
 
 volumes:
   db-data:
+  app-data:

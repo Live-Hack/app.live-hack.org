@@ -6,6 +6,7 @@ pub mod migrate;
 pub mod ratelimit;
 pub mod request;
 pub mod start;
+pub mod storage;
 pub mod template;
 pub mod tenant;
 pub mod trace;

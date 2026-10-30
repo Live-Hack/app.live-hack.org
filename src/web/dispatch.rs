@@ -3,7 +3,7 @@ use crate::helper::template::{Vars, escape_html};
 use crate::helper::trace::trace_error;
 use crate::models::user;
 use crate::web::page::{PageResult, RouteResult, page_html};
-use crate::web::routes::{account, auth, home, txt};
+use crate::web::routes::{account, auth, challenges, home, txt};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, web};
 
@@ -23,6 +23,9 @@ async fn route(ctx: &Ctx, segs: &[&str]) -> PageResult {
         ["auth", "register"] => auth::register_page(ctx).await,
         ["auth", "reset"] => auth::reset_page(ctx).await,
         ["account", "settings"] => account::settings_page(ctx),
+        ["challenges"] => challenges::list(ctx).await,
+        ["challenges", slug] => challenges::detail(ctx, slug).await,
+        ["challenges", slug, "files", file, _name] => challenges::file(ctx, slug, file).await,
         ["robots.txt"] => Ok(txt::robot()),
         ["security.txt"] | [".well-known", "security.txt"] => Ok(txt::security(ctx)),
         _ => Ok(RouteResult::NotFound),
@@ -38,7 +41,7 @@ pub async fn dispatch(path: web::Path<String>, req: HttpRequest) -> HttpResponse
     };
     let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     match route(&ctx, &segs).await {
-        Ok(result) => build_response(&ctx, result),
+        Ok(result) => build_response(&ctx, &req, result),
         Err(e) => {
             trace_error(format!("page {}: {e}", ctx.path));
             error_page(
@@ -68,7 +71,7 @@ fn html(status: StatusCode, body: String) -> HttpResponse {
         .body(body)
 }
 
-fn build_response(ctx: &Ctx, result: RouteResult) -> HttpResponse {
+fn build_response(ctx: &Ctx, req: &HttpRequest, result: RouteResult) -> HttpResponse {
     match result {
         RouteResult::Html(body) => html(StatusCode::OK, body),
         RouteResult::Text(body) => HttpResponse::Ok()
@@ -78,6 +81,21 @@ fn build_response(ctx: &Ctx, result: RouteResult) -> HttpResponse {
             .insert_header(("Location", target.clone()))
             .content_type("text/html; charset=utf-8")
             .body(format!("<a href=\"{0}\">{0}</a>", escape_html(&target))),
+        RouteResult::File(path, name) => match actix_files::NamedFile::open(&path) {
+            Ok(f) => f
+                .set_content_type("application/octet-stream".parse().unwrap())
+                .set_content_disposition(actix_web::http::header::ContentDisposition {
+                    disposition: actix_web::http::header::DispositionType::Attachment,
+                    parameters: vec![actix_web::http::header::DispositionParam::Filename(name)],
+                })
+                .into_response(req),
+            Err(_) => error_page(
+                ctx,
+                StatusCode::NOT_FOUND,
+                "Page not found",
+                "This file is missing.",
+            ),
+        },
         RouteResult::NotFound => error_page(
             ctx,
             StatusCode::NOT_FOUND,

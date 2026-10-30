@@ -256,7 +256,7 @@ def test_auth():
 
     # rate limit
     rl = Client()
-    codes = [rl.api('/auth/login', {'login': 'player1', 'password': 'bad-password'})[0] for _ in range(11)]
+    codes = [rl.api('/auth/login', {'login': 'ghost-user', 'password': 'bad-password'})[0] for _ in range(11)]
     check(codes[-1] == 429 and codes[0] == 401, 'login rate limited per user')
 
     # pages
@@ -299,6 +299,118 @@ def test_shell():
     check(s == 404 and 'Sign in' in b, '404 page for anonymous has sign-in button')
 
 
+# ---------------------------------------------------------------- 03 challenges
+def add_chall(slug, name, category='web', difficulty='easy', points=100, flag='LH{flag}', flag_type='static',
+              status='published', practice=1, description='Find the flag.', ctype='file', static_url=''):
+    t = sql("SELECT uuid FROM tenants WHERE slug='default'")
+    esc = lambda v: v.replace('\\', '\\\\').replace("'", "\\'")
+    sql(f"INSERT INTO challs (uuid, tenant_uuid, slug, name, description, category, difficulty, points, ctype, static_url, flag_type, flag, status, practice, published_at) "
+        f"VALUES (UUID(), '{t}', '{slug}', '{esc(name)}', '{esc(description)}', '{category}', '{difficulty}', {points}, '{ctype}', '{static_url}', '{flag_type}', '{esc(flag)}', '{status}', {practice}, NOW())")
+    return sql(f"SELECT uuid FROM challs WHERE slug='{slug}'")
+
+
+def test_challenges():
+    section('03 challenges & flags')
+    admin = Client(); admin.api('/auth/login', {'login': 'admin', 'password': PASSWORD})
+    p1 = Client(); p1.api('/auth/login', {'login': 'player1', 'password': PASSWORD})
+    p3 = Client(); p3.api('/auth/register', {'username': 'player3', 'password': PASSWORD})
+    s, h, _ = Client().get('/challenges')
+    check(s == 303 and h['location'].startswith('/auth/login'), 'challenges need login')
+    s, _, b = p1.get('/challenges')
+    check(s == 200 and 'No challenges found' in b, 'empty catalogue state')
+
+    web = add_chall('web-101', 'Cookie <b>Monster</b>', description='# Intro\n\n<script>alert(1)</script>\n\nLook at **cookies** <img src=x onerror=alert(1)>')
+    add_chall('rsa-easy', 'RSA baby', category='crypto', difficulty='medium', points=300, flag='lh{case}', flag_type='case_insensitive')
+    rx = add_chall('regex-one', 'Regex one', category='misc', points=50, flag=r'LH\{[0-9]{4}\}', flag_type='regex')
+    draft = add_chall('draft-one', 'Secret draft', status='draft')
+    add_chall('event-only', 'Event only', practice=0)
+    add_chall('online', 'Online one', ctype='static', static_url='https://example.com/chall')
+    for i in range(24):
+        add_chall(f'bulk-{i:02d}', f'Bulk {i:02d}', category='forensics', points=10 + i)
+
+    s, _, b = p1.get('/challenges')
+    check(s == 200 and '28 challenges' in b, 'catalogue counts published practice challenges only')
+    check('Secret draft' not in b and 'Event only' not in b, 'draft and event-only hidden')
+    check('Cookie &lt;b&gt;Monster&lt;/b&gt;' in b or 'Cookie &lt;b&gt;Monster' in b or 'page=2' in b, 'names escaped or on page 2')
+    check('page=2' in b and b.count('chall-grid-card"') + b.count('chall-grid-card ') >= 24, 'paginated 24 per page')
+    s, _, b = p1.get('/challenges?category=crypto')
+    check('RSA baby' in b and 'Bulk 00' not in b and '1 challenge<' in b, 'filter by category')
+    s, _, b = p1.get('/challenges?q=bulk%2001')
+    check('Bulk 01' in b and '1 challenge<' in b, 'search by name')
+    s, _, b = p1.get('/challenges?q=%25')
+    check('0 challenges' in b, 'LIKE wildcards are escaped')
+    s, _, b = p1.get('/challenges?difficulty=medium')
+    check('RSA baby' in b and '1 challenge<' in b, 'filter by difficulty')
+    s, _, b = p1.get('/challenges?sort=points_desc')
+    check(b.find('RSA baby') < b.find('Bulk 23'), 'sort by points')
+
+    # detail
+    s, _, b = p1.get('/challenges/web-101')
+    check(s == 200 and 'id="intro"' in b and 'href="#intro"' in b, 'markdown rendered with working heading anchors')
+    check('<script>alert(1)</script>' not in b and 'onerror' not in b and '<strong>cookies</strong>' in b, 'raw HTML dropped from markdown')
+    check('Cookie &lt;b&gt;Monster&lt;/b&gt;' in b, 'challenge name escaped')
+    check('data-api="/api/v1/challenges/' + web + '/submit"' in b, 'flag form present')
+    s, _, b = p1.get('/challenges/draft-one')
+    check(s == 404, 'player cannot see a draft')
+    s, _, b = admin.get('/challenges/draft-one')
+    check(s == 200 and 'notice' in b, 'admin previews a draft')
+    s, _, b = p1.get('/challenges/online')
+    check('https://example.com/chall' in b, 'static challenge shows its URL')
+    s, _, b = p1.get('/challenges/nope')
+    check(s == 404, 'unknown challenge 404')
+
+    # files
+    t = sql("SELECT uuid FROM tenants WHERE slug='default'")
+    key = '11111111-2222-3333-4444-555555555555'
+    subprocess.run(['docker', 'compose', '-p', PROJECT, 'exec', '-T', 'app', 'sh', '-c',
+                    f'mkdir -p /app/data/files/{t} && printf "hello pcap" > /app/data/files/{t}/{key}'], check=True)
+    sql(f"INSERT INTO challs_files (uuid, chall_uuid, filename, storage_key, sha256, size) VALUES ('f0000000-0000-0000-0000-000000000001', '{web}', 'cap ture.pcap', '{key}', 'abc', 10)")
+    s, _, b = p1.get('/challenges/web-101')
+    check('cap ture.pcap' in b and '/files/f0000000-0000-0000-0000-000000000001/' in b, 'file listed')
+    s, h, b = p1.get('/challenges/web-101/files/f0000000-0000-0000-0000-000000000001/x')
+    check(s == 200 and b == 'hello pcap' and 'attachment' in h.get('content-disposition', ''), 'file downloads as attachment')
+    s, h, _ = Client().get('/challenges/web-101/files/f0000000-0000-0000-0000-000000000001/x')
+    check(s == 303, 'file download needs login')
+    s, _, _ = p1.get('/challenges/rsa-easy/files/f0000000-0000-0000-0000-000000000001/x')
+    check(s == 404, 'file only through its own challenge')
+
+    # flags
+    s, d, _ = p1.api(f'/challenges/{web}/submit', {'flag': 'LH{nope}'})
+    check(s == 200 and d['status'] == 'wrong', 'wrong flag')
+    s, d, _ = p1.api(f'/challenges/{web}/submit', {'flag': ''})
+    check(s == 400, 'empty flag refused')
+    s, d, _ = p1.api(f'/challenges/{web}/submit', {'flag': ' LH{flag} '})
+    check(s == 200 and d['status'] == 'correct' and d['first_blood'] is True and d['points'] == 100, 'correct flag, first blood')
+    s, d, _ = p1.api(f'/challenges/{web}/submit', {'flag': 'LH{flag}'})
+    check(d['status'] == 'already_solved', 'already solved')
+    s, d, _ = p3.api(f'/challenges/{web}/submit', {'flag': 'LH{flag}'})
+    check(d['status'] == 'correct' and d['first_blood'] is False, 'second solver is not first blood')
+    s, _, b = p1.get('/challenges/web-101')
+    check('chall-status--solved' in b and 'data-then="flag"' not in b and 'first blood' in b, 'detail shows solved state and first blood')
+    s, _, b = p1.get('/challenges?state=solved')
+    check('Cookie' in b and '1 challenge<' in b, 'filter solved')
+    s, _, b = p1.get('/challenges?state=unsolved')
+    check('27 challenges' in b, 'filter unsolved')
+    rsa = sql("SELECT uuid FROM challs WHERE slug='rsa-easy'")
+    s, d, _ = p1.api(f'/challenges/{rsa}/submit', {'flag': 'LH{CASE}'})
+    check(d['status'] == 'correct', 'case-insensitive flag')
+    s, d, _ = p1.api(f'/challenges/{rx}/submit', {'flag': 'LH{12345}'})
+    check(d['status'] == 'wrong', 'regex anchored')
+    s, d, _ = p1.api(f'/challenges/{rx}/submit', {'flag': 'LH{2026}'})
+    check(d['status'] == 'correct', 'regex flag')
+    s, d, _ = p1.api(f'/challenges/{draft}/submit', {'flag': 'LH{flag}'})
+    check(s == 404, 'player cannot submit to a draft')
+    s, d, _ = admin.api(f'/challenges/{draft}/submit', {'flag': 'LH{flag}'})
+    check(d.get('test') is True and d['status'] == 'correct', 'admin tests a draft flag')
+    check(sql(f"SELECT COUNT(*) FROM challs_solved WHERE chall_uuid='{draft}'") == '0', 'draft test not recorded')
+    check(sql(f"SELECT COUNT(*) FROM challs_submissions WHERE chall_uuid='{web}'") == '3', 'submissions logged (wrong + 2 correct)')
+    check(sql("SELECT COUNT(*) FROM challs_submissions WHERE value_hash = 'LH{flag}'") == '0', 'flags stored hashed')
+    codes = [p3.api(f'/challenges/{rsa}/submit', {'flag': 'x'})[0] for _ in range(11)]
+    check(codes[0] == 200 and codes[-1] == 429, 'flag submissions rate limited')
+    s, d, _ = p1.api('/challenges?category=crypto')
+    check(s == 200 and d['total'] == 1 and d['challenges'][0]['solved'] is True and 'flag' not in d['challenges'][0], 'API list, no flag leak')
+
+
 # ---------------------------------------------------------------- tenancy
 def test_tenancy():
     section('01 multi-tenant isolation')
@@ -327,7 +439,7 @@ def test_tenancy():
 
 if __name__ == '__main__':
     t0 = time.time()
-    for fn in [test_foundations, test_auth, test_shell, test_tenancy]:
+    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_tenancy]:
         try:
             fn()
         except Exception as e:  # a crash in a section is a failure, keep going

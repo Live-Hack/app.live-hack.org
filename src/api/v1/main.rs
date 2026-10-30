@@ -1,5 +1,5 @@
 use crate::api::v1::core::{self, ApiResult, err, not_found, respond};
-use crate::api::v1::{account, admin, auth};
+use crate::api::v1::{account, admin, auth, challenges};
 use crate::helper::request::{Ctx, build, get_request_body};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, post, web};
@@ -17,6 +17,7 @@ async fn route_get(ctx: &Ctx, segs: &[&str]) -> ApiResult {
         ["me"] => auth::me(ctx),
         ["account", "sessions"] => account::sessions(ctx).await,
         ["admin", "settings"] => admin::get_settings(ctx),
+        ["challenges"] => challenges::list(ctx).await,
         _ => Err(not_found()),
     }
 }
@@ -31,6 +32,7 @@ async fn route_post(ctx: &Ctx, segs: &[&str], body: &Value) -> ApiResult {
         ["account", "username"] => account::username(ctx, body).await,
         ["account", "password"] => account::password(ctx, body).await,
         ["account", "sessions", "revoke"] => account::revoke_others(ctx).await,
+        ["challenges", uuid, "submit"] => challenges::submit(ctx, uuid, body).await,
         ["admin", "settings"] => admin::set_settings(ctx, body).await,
         ["admin", "invites"] => admin::create_invite(ctx, body).await,
         ["admin", "users", uuid, "reset-link"] => admin::reset_link(ctx, uuid).await,

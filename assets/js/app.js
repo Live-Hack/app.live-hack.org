@@ -66,7 +66,7 @@
     const form = e.target.closest('form[data-api]');
     if (!form) return;
     e.preventDefault();
-    const msg = $('[data-msg]', form);
+    const msg = $('[data-msg]', form) || $('[data-msg]', form.parentElement);
     const btn = $('[type=submit]', form);
     if (msg) { msg.textContent = ''; msg.className = 'form__msg'; }
     setBusy(btn, true);
@@ -82,7 +82,8 @@
     if (form.dataset.redirect !== undefined) return go(form.dataset.redirect || '/', note);
     if (form.dataset.reload !== undefined) return go(location.href, note);
     if (form.dataset.reset !== undefined) form.reset();
-    if (form.dataset.then && after[form.dataset.then]) after[form.dataset.then](data, form);
+    // a named hook renders its own feedback
+    if (form.dataset.then && after[form.dataset.then]) return after[form.dataset.then](data, form);
     if (note && msg) { msg.textContent = note; msg.classList.add('is-ok'); }
     else if (note) toast(note);
   });
@@ -181,6 +182,48 @@
   }
   after.sessions = loadSessions;
   document.addEventListener('DOMContentLoaded', loadSessions);
+
+  // ---- flag submission result ----
+  after.flag = (data, form) => {
+    const box = form.closest('.chall-flag-submit');
+    const out = $('[data-msg]', box);
+    out.className = 'chall-flag-result';
+    out.textContent = data.message || '';
+    if (data.status === 'correct' || data.status === 'already_solved') {
+      out.classList.add('is-correct');
+      box.classList.add('is-correct');
+      if (!data.test) setTimeout(() => location.reload(), 1100);
+    } else {
+      out.classList.add('is-error');
+      form.classList.remove('is-shake'); void form.offsetWidth; form.classList.add('is-shake');
+      const input = $('input[name=flag]', form);
+      input?.select();
+    }
+  };
+
+  // ---- filter toolbars submit themselves (debounced for text) ----
+  document.addEventListener('DOMContentLoaded', () => {
+    $$('form[data-autosubmit]').forEach((f) => {
+      let t;
+      f.addEventListener('change', () => f.requestSubmit());
+      f.addEventListener('input', (e) => {
+        if (e.target.type !== 'search') return;
+        clearTimeout(t);
+        t = setTimeout(() => f.requestSubmit(), 450);
+      });
+    });
+    // keep focus in the search box after an auto-submit reload
+    const q = $('form[data-autosubmit] input[type=search]');
+    if (q && q.value) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  });
+
+  // ---- server times (UTC) shown in the viewer's timezone ----
+  document.addEventListener('DOMContentLoaded', () => {
+    $$('time[datetime]').forEach((t) => {
+      const d = new Date(t.getAttribute('datetime').replace(' ', 'T'));
+      if (!isNaN(d)) t.textContent = d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    });
+  });
 
   window.LH = { api, toast, go, after, $, $$ };
 })();

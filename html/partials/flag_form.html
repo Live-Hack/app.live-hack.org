@@ -1,0 +1,8 @@
+<div class="chall-flag-submit">
+    <span class="chall-sidebar__section-title">Submit flag</span>
+    <form class="chall-flag-form" data-api="/api/v1/challenges/{{uuid}}/submit" data-then="flag">
+        <input name="flag" class="chall-flag-input" placeholder="{{flag_format}}" autocomplete="off" spellcheck="false" required aria-label="Flag">
+        <button class="chall-flag-btn" type="submit">Submit</button>
+    </form>
+    <div class="chall-flag-result" data-msg role="status"></div>
+</div>

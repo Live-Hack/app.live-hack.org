@@ -83,7 +83,8 @@ pub async fn login(ctx: &Ctx, body: &Value) -> ApiResult {
         return Err(bad("Enter your username and password."));
     }
     let t = ctx.tenant_uuid();
-    if !ratelimit::allow(&format!("login:ip:{t}:{}", ctx.ip), 20, 60).await?
+    // Per-IP limit stays high: a whole classroom often shares one NAT address at the start of an event.
+    if !ratelimit::allow(&format!("login:ip:{t}:{}", ctx.ip), 300, 60).await?
         || !ratelimit::allow(&format!("login:user:{t}:{}", login.to_lowercase()), 10, 60).await?
     {
         return Err(too_many());
@@ -133,7 +134,7 @@ pub async fn register(ctx: &Ctx, body: &Value) -> ApiResult {
         return Err(bad("This email address is not valid."));
     }
     check_password(password)?;
-    if !ratelimit::allow(&format!("register:{t}:{}", ctx.ip), 10, 600).await? {
+    if !ratelimit::allow(&format!("register:{t}:{}", ctx.ip), 100, 600).await? {
         return Err(too_many());
     }
 

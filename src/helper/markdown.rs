@@ -10,7 +10,7 @@ static OPTIONS: Lazy<Options> = Lazy::new(|| {
     o.extension.strikethrough = true;
     o.extension.autolink = true;
     o.extension.tasklist = true;
-    o.extension.header_ids = Some("md-".into());
+    o.extension.header_ids = Some(String::new());
     o.render.unsafe_ = false;
     o
 });

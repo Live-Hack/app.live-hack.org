@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <ul class="breadcrumb">
+            <li class="breadcrumb__item"><a href="/challenges">Challenges</a></li>
+            <li class="breadcrumb__item breadcrumb__item--active">{{name}}</li>
+        </ul>
+        {{{notice}}}
+        <div class="chall-detail-hero">
+            <div class="chall-detail-hero__left">
+                <div class="chall-detail-hero__badges">
+                    <span class="chall-detail-hero__cat {{cat_class}}">{{category}}</span>
+                    <span class="chall-detail-hero__diff diff-{{difficulty}}">{{difficulty}}</span>
+                </div>
+                <h1 class="chall-detail-hero__title">{{name}}</h1>
+                <div class="chall-detail-hero__meta">
+                    <div class="chall-detail-hero__stat"><span>{{points}} pts</span></div>
+                    <div class="chall-detail-hero__stat"><span>{{solves}} solves</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid--side">
+            <div class="stack">
+                <section class="chall-card">
+                    <div class="chall-card__header"><h2>Description</h2></div>
+                    <div class="chall-card__body md">{{{description}}}</div>
+                </section>
+                <section class="chall-card">
+                    <div class="chall-card__header"><h2>Files &amp; resources</h2></div>
+                    <div class="chall-card__body"><div class="chall-files">{{{files}}}</div></div>
+                    {{{instance}}}
+                </section>
+                <section class="chall-card">
+                    <div class="chall-card__header"><h2>Rules</h2></div>
+                    <div class="chall-card__body">
+                        <ul class="chall-rules">
+                            <li>Do not share flags or full solutions while the challenge is open.</li>
+                            <li>Attack only the challenge you are given, never the platform itself.</li>
+                            <li>Flag format: <code>{{flag_format}}</code></li>
+                        </ul>
+                    </div>
+                </section>
+            </div>
+
+            <aside class="chall-sidebar">
+                <div class="chall-sidebar__points">
+                    <div class="chall-sidebar__points-value">{{points}}</div>
+                    <div class="chall-sidebar__points-label">points</div>
+                </div>
+                <div class="chall-sidebar__stats">
+                    <div class="chall-sidebar__stat"><span class="chall-sidebar__stat-label">Category</span><span class="chall-sidebar__stat-value">{{category}}</span></div>
+                    <div class="chall-sidebar__stat"><span class="chall-sidebar__stat-label">Difficulty</span><span class="chall-sidebar__stat-value diff-text-{{difficulty}}">{{difficulty}}</span></div>
+                    <div class="chall-sidebar__stat"><span class="chall-sidebar__stat-label">Solves</span><span class="chall-sidebar__stat-value">{{solves}}</span></div>
+                </div>
+                <div class="chall-sidebar__section">
+                    <span class="chall-sidebar__section-title">Authors</span>
+                    <p class="chall-authors">{{authors}}</p>
+                </div>
+                <div class="chall-separator"></div>
+                {{{solved}}}
+                {{{flag_form}}}
+                <div class="chall-separator"></div>
+                <div class="chall-sidebar__section">
+                    <span class="chall-sidebar__section-title">First solvers</span>
+                    <ol class="solvers">{{{solvers}}}</ol>
+                </div>
+            </aside>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

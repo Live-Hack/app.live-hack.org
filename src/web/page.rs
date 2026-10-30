@@ -7,6 +7,8 @@ pub enum RouteResult {
     Html(String),
     Text(String),
     Redirect(String),
+    /// File download: path on disk, filename shown to the user.
+    File(std::path::PathBuf, String),
     NotFound,
 }
 

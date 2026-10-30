@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="chall-page-hero">
+            <div class="chall-page-hero__content">
+                <h1 class="chall-page-hero__title">Challenges</h1>
+                <p class="chall-page-hero__text">Pick a challenge, find the flag, climb the scoreboard.</p>
+            </div>
+            <div class="chall-page-hero__stats">
+                <span class="chall-page-hero__count">{{count}}</span>
+            </div>
+        </div>
+
+        <form class="toolbar" method="get" action="/challenges" data-autosubmit>
+            <input class="input" type="search" name="q" value="{{q}}" placeholder="Search by name…" aria-label="Search">
+            <select class="select" name="category" aria-label="Category">{{{cat_options}}}</select>
+            <select class="select" name="difficulty" aria-label="Difficulty">{{{diff_options}}}</select>
+            <select class="select" name="state" aria-label="Solved state">{{{state_options}}}</select>
+            <select class="select" name="sort" aria-label="Sort">{{{sort_options}}}</select>
+            <noscript><button class="btn" type="submit">Apply</button></noscript>
+        </form>
+
+        <div class="grid grid--cards">
+            {{{grid}}}
+        </div>
+        {{{pager}}}
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

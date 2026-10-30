@@ -1,5 +1,7 @@
 pub mod audit;
+pub mod chall;
 pub mod session;
+pub mod solve;
 pub mod token;
 pub mod user;
 
