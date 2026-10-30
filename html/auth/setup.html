@@ -1,0 +1,22 @@
+{{inject_sign_open}}
+<form class="sign__form" data-api="/api/v1/setup" data-redirect="/">
+    {{inject_sign_logo}}
+    <h1 class="sign__title">Set up your platform</h1>
+    <p class="sign__text sign__text--lead">Create the administrator account. You can invite players once you are in.</p>
+    <div class="sign__group">
+        <label class="sign__label" for="site_name">Platform name</label>
+        <input id="site_name" name="site_name" class="sign__input" value="{{site_name}}" maxlength="64" autocomplete="organization">
+    </div>
+    <div class="sign__group">
+        <label class="sign__label" for="username">Admin username</label>
+        <input id="username" name="username" class="sign__input" required minlength="3" maxlength="32" autocomplete="username" autofocus>
+    </div>
+    <div class="sign__group">
+        <label class="sign__label" for="password">Password</label>
+        <input id="password" name="password" type="password" class="sign__input" required minlength="10" autocomplete="new-password">
+        <small class="sign__hint">10 characters minimum.</small>
+    </div>
+    <p class="form__msg" data-msg role="alert"></p>
+    <button class="sign__btn" type="submit">Create admin account</button>
+</form>
+{{inject_sign_close}}

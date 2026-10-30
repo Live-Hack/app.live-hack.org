@@ -1,0 +1,14 @@
+{{inject_sign_open}}
+<form class="sign__form" data-api="/api/v1/auth/reset" data-redirect="/auth/login" data-toast="Password updated. Sign in with your new password.">
+    {{inject_sign_logo}}
+    <h1 class="sign__title">Choose a new password</h1>
+    <input type="hidden" name="token" value="{{token}}">
+    <div class="sign__group">
+        <label class="sign__label" for="password">New password</label>
+        <input id="password" name="password" type="password" class="sign__input" required minlength="10" autocomplete="new-password" autofocus>
+        <small class="sign__hint">10 characters minimum. All your sessions will be signed out.</small>
+    </div>
+    <p class="form__msg" data-msg role="alert"></p>
+    <button class="sign__btn" type="submit">Save password</button>
+</form>
+{{inject_sign_close}}

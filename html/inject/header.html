@@ -1,36 +1,26 @@
 <header class="header">
     <div class="header__content">
         <div class="header__logo ms-n2">
-            <a href="/" class="d-flex align-items-center gap-2 text-decoration-none header__brand">
-                <img src="/assets/logo-white.png" alt="Live Hack logo" class="header__brand-logo">
-                <span class="header__brand-text" style="color: white">
-                    <h2 style="margin: 0;">Live Hack</h2>
-                </span>
+            <a href="/" class="header__brand">
+                <img src="/assets/logo-white.png" alt="" class="header__brand-logo" width="32" height="32">
+                <span class="header__brand-text">{{site_name}}</span>
             </a>
         </div>
 
-        <div class="header__menu">
+        <nav class="header__menu" aria-label="Main">
             <ul class="header__nav">
-                <li class="header__nav-item">
-                    <a class="header__nav-link" href="/challenges">Challenges</a>
-                </li>
-                <li class="header__nav-item">
-                    <a class="header__nav-link" href="/labs">Labs</a>
-                </li>
-                <li class="header__nav-item">
-                    <a class="header__nav-link" href="/events">Events</a>
-                </li>
-                <li class="header__nav-item">
-                    <a class="header__nav-link" href="/scoreboard">Scoreboard</a>
-                </li>
+                <li class="header__nav-item"><a class="header__nav-link" href="/challenges">Challenges</a></li>
+                <li class="header__nav-item"><a class="header__nav-link" href="/labs">Labs</a></li>
+                <li class="header__nav-item"><a class="header__nav-link" href="/events">Events</a></li>
+                <li class="header__nav-item"><a class="header__nav-link" href="/scoreboard">Scoreboard</a></li>
             </ul>
-        </div>
+        </nav>
 
         <div class="header__actions">
-            {{login_space}}
+            {{{user_menu}}}
         </div>
 
-        <button class="header__btn" type="button" aria-label="Menu">
+        <button class="header__btn" type="button" aria-label="Open menu" aria-expanded="false">
             <span></span>
             <span></span>
             <span></span>

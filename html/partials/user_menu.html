@@ -1,0 +1,12 @@
+<div class="header__action header__action--profile">
+    <button class="header__profile-btn" type="button" data-dropdown aria-haspopup="true" aria-expanded="false">
+        <span class="avatar" aria-hidden="true">{{initial}}</span>
+        <div><p>{{username}}</p><span>{{role}}</span></div>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M17,9.17a1,1,0,0,0-1.41,0L12,12.71,8.46,9.17a1,1,0,0,0-1.41,0,1,1,0,0,0,0,1.42l4.24,4.24a1,1,0,0,0,1.42,0L17,10.59A1,1,0,0,0,17,9.17Z"/></svg>
+    </button>
+    <ul class="dropdown-menu header__profile-menu">
+        <li><a href="/account/settings"><span>Settings</span></a></li>
+        {{{admin_link}}}
+        <li><a href="/" data-post="/api/v1/auth/logout" data-redirect="/"><span>Sign out</span></a></li>
+    </ul>
+</div>

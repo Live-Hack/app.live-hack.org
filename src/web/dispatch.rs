@@ -1,36 +1,88 @@
-use crate::helper::replace_in_body::escape_html;
-use crate::helper::request::{RequestData, log_request};
-use crate::web::core_routes::nonlogged::non_logged;
-use crate::web::core_utils::cached_page::{HTML_404, HTML_REDIRECT};
-use crate::web::core_utils::{custom_type::RouteResult, page_modeler::page_modeler};
-use actix_web::{HttpRequest, HttpResponse, Responder, get, web};
+use crate::helper::request::{Ctx, build};
+use crate::helper::template::{Vars, escape_html};
+use crate::helper::trace::trace_error;
+use crate::models::user;
+use crate::web::page::{PageResult, RouteResult, page_html};
+use crate::web::routes::{account, auth, home, txt};
+use actix_web::http::StatusCode;
+use actix_web::{HttpRequest, HttpResponse, get, web};
 
-#[get("/{path:.*}")]
-#[tracing::instrument(level = "info", skip(path, req))]
-pub async fn dispatch(path: web::Path<String>, req: HttpRequest) -> impl Responder {
-    let request = log_request(&path, &req, "GET");
-    // ponytail: logged routes plug in here in phase 01 (auth)
-    let content = non_logged(&request).await;
-    build_response(content, &request)
+async fn route(ctx: &Ctx, segs: &[&str]) -> PageResult {
+    // An empty platform only shows the setup page.
+    if !user::setup_done(ctx.tenant_uuid()).await? {
+        return match segs {
+            ["setup"] => auth::setup_page(ctx),
+            ["robots.txt"] => Ok(txt::robot()),
+            _ => Ok(RouteResult::Redirect("/setup".into())),
+        };
+    }
+    match segs {
+        [] => home::home(ctx),
+        ["setup"] => Ok(RouteResult::Redirect("/".into())),
+        ["auth", "login"] => auth::login_page(ctx),
+        ["auth", "register"] => auth::register_page(ctx).await,
+        ["auth", "reset"] => auth::reset_page(ctx).await,
+        ["account", "settings"] => account::settings_page(ctx),
+        ["robots.txt"] => Ok(txt::robot()),
+        ["security.txt"] | [".well-known", "security.txt"] => Ok(txt::security(ctx)),
+        _ => Ok(RouteResult::NotFound),
+    }
 }
 
-fn build_response(result: RouteResult, request: &RequestData) -> HttpResponse {
+#[get("/{path:.*}")]
+pub async fn dispatch(path: web::Path<String>, req: HttpRequest) -> HttpResponse {
+    let Some(ctx) = build(&req, &path, "GET").await else {
+        return HttpResponse::NotFound()
+            .content_type("text/plain")
+            .body("Unknown host");
+    };
+    let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    match route(&ctx, &segs).await {
+        Ok(result) => build_response(&ctx, result),
+        Err(e) => {
+            trace_error(format!("page {}: {e}", ctx.path));
+            error_page(
+                &ctx,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Something went wrong",
+                "The server hit an error. Try again in a moment.",
+            )
+        }
+    }
+}
+
+fn error_page(ctx: &Ctx, status: StatusCode, title: &str, text: &str) -> HttpResponse {
+    let mut v = Vars::new();
+    v.set("code", status.as_u16().to_string())
+        .set("message", text);
+    html(status, page_html(ctx, "error.html", title, v))
+}
+
+fn html(status: StatusCode, body: String) -> HttpResponse {
+    HttpResponse::build(status)
+        .content_type("text/html; charset=utf-8")
+        .insert_header(("Cache-Control", "no-store"))
+        .insert_header(("X-Content-Type-Options", "nosniff"))
+        .insert_header(("Referrer-Policy", "same-origin"))
+        .insert_header(("X-Frame-Options", "DENY"))
+        .body(body)
+}
+
+fn build_response(ctx: &Ctx, result: RouteResult) -> HttpResponse {
     match result {
-        RouteResult::Html(body) => HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(page_modeler(request, body)),
+        RouteResult::Html(body) => html(StatusCode::OK, body),
         RouteResult::Text(body) => HttpResponse::Ok()
             .content_type("text/plain; charset=utf-8")
             .body(body),
-        RouteResult::Redirect(target) => {
-            let body = HTML_REDIRECT.replace("{{path}}", &escape_html(&target));
-            HttpResponse::SeeOther()
-                .content_type("text/html; charset=utf-8")
-                .append_header(("Location", target))
-                .body(body)
-        }
-        RouteResult::NotFound => HttpResponse::NotFound()
+        RouteResult::Redirect(target) => HttpResponse::SeeOther()
+            .insert_header(("Location", target.clone()))
             .content_type("text/html; charset=utf-8")
-            .body(page_modeler(request, HTML_404.clone())),
+            .body(format!("<a href=\"{0}\">{0}</a>", escape_html(&target))),
+        RouteResult::NotFound => error_page(
+            ctx,
+            StatusCode::NOT_FOUND,
+            "Page not found",
+            "The page you are looking for is not available.",
+        ),
     }
 }

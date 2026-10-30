@@ -1,0 +1,24 @@
+{{inject_sign_open}}
+<form class="sign__form" data-api="/api/v1/auth/register" data-redirect="/">
+    {{inject_sign_logo}}
+    <h1 class="sign__title">Create your account</h1>
+    <input type="hidden" name="invite" value="{{invite}}">
+    <div class="sign__group">
+        <label class="sign__label" for="username">Username</label>
+        <input id="username" name="username" class="sign__input" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_.\-]+" autocomplete="username" autofocus>
+        <small class="sign__hint">Shown on the scoreboard. Letters, digits, _ - . only.</small>
+    </div>
+    <div class="sign__group">
+        <label class="sign__label" for="email">Email <span class="sign__optional">optional</span></label>
+        <input id="email" name="email" type="email" class="sign__input" maxlength="255" autocomplete="email">
+    </div>
+    <div class="sign__group">
+        <label class="sign__label" for="password">Password</label>
+        <input id="password" name="password" type="password" class="sign__input" required minlength="10" autocomplete="new-password">
+        <small class="sign__hint">10 characters minimum.</small>
+    </div>
+    <p class="form__msg" data-msg role="alert"></p>
+    <button class="sign__btn" type="submit">Create account</button>
+    <span class="sign__text">Already registered? <a href="/auth/login">Sign in</a></span>
+</form>
+{{inject_sign_close}}

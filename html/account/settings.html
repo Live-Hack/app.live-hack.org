@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head">
+            <h1 class="page-head__title">Settings</h1>
+            <p class="page-head__text">Signed in as <b>{{username}}</b> · {{role}} · member since {{member_since}}</p>
+        </div>
+
+        <div class="panels">
+            <form class="panel" data-api="/api/v1/account/username" data-reload>
+                <h2 class="panel__title">Username</h2>
+                <div class="sign__group">
+                    <label class="sign__label" for="username">Username</label>
+                    <input id="username" name="username" class="sign__input" value="{{username}}" required minlength="3" maxlength="32" autocomplete="username">
+                </div>
+                <p class="form__msg" data-msg role="alert"></p>
+                <button class="sign__btn" type="submit">Save username</button>
+            </form>
+
+            <form class="panel" data-api="/api/v1/account/password" data-reset>
+                <h2 class="panel__title">Password</h2>
+                <div class="sign__group">
+                    <label class="sign__label" for="current">Current password</label>
+                    <input id="current" name="current" type="password" class="sign__input" required autocomplete="current-password">
+                </div>
+                <div class="sign__group">
+                    <label class="sign__label" for="password">New password</label>
+                    <input id="password" name="password" type="password" class="sign__input" required minlength="10" autocomplete="new-password">
+                    <small class="sign__hint">Other sessions are signed out when you change it.</small>
+                </div>
+                <p class="form__msg" data-msg role="alert"></p>
+                <button class="sign__btn" type="submit">Change password</button>
+            </form>
+
+            <section class="panel">
+                <h2 class="panel__title">Sessions</h2>
+                <ul class="sessions" data-sessions><li class="sessions__empty">Loading…</li></ul>
+                <button class="sign__btn sign__btn--ghost" type="button" data-post="/api/v1/account/sessions/revoke" data-then="sessions">Sign out other sessions</button>
+            </section>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

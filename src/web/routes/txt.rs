@@ -1,17 +1,17 @@
-use crate::helper::config::CONFIG;
-use crate::web::core_utils::custom_type::RouteResult;
-use crate::web::core_utils::utils::read_html_raw;
+use crate::helper::request::Ctx;
+use crate::web::page::RouteResult;
 
 pub fn robot() -> RouteResult {
-    RouteResult::Text(read_html_raw("html/robots.txt"))
+    RouteResult::Text("User-agent: *\nDisallow: /\n".to_string())
 }
 
 /// Served only when the host sets SECURITY_CONTACT, since each install has its own contact.
-pub fn security() -> RouteResult {
+pub fn security(ctx: &Ctx) -> RouteResult {
     match std::env::var("SECURITY_CONTACT") {
         Ok(contact) if !contact.is_empty() => RouteResult::Text(format!(
-            "Contact: {}\nCanonical: {}/.well-known/security.txt\nPreferred-Languages: en, fr\n",
-            contact, CONFIG.base_url
+            "Contact: {}\nCanonical: {}\nPreferred-Languages: en, fr\n",
+            contact,
+            ctx.url("/.well-known/security.txt")
         )),
         _ => RouteResult::NotFound,
     }

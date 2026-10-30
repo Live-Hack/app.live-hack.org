@@ -1,49 +1,18 @@
-<!-- footer -->
 <footer class="footer">
     <div class="container">
-        <div class="row">
-            <div class="col-12 col-sm-8 col-md-6 col-lg-6 col-xl-4">
-                <div class="footer__logo">
-                    <a href="/" class="d-flex align-items-center gap-2 text-decoration-none header__brand">
-                        <img src="/assets/logo-white.png" alt="Live Hack logo" class="header__brand-logo">
-                        <span class="header__brand-text" style="color: white">
-                            <h2 style="margin: 0;">Live Hack</h2>
-                        </span>
-                    </a>
-                </div>
-                <p class="footer__tagline">
-                    Open source platform for CTF challenges and hands-on labs.
-                </p>
-            </div>
-
-            <div class="col-6 col-md-4 col-lg-3 col-xl-2">
-                <h6 class="footer__title">Explore</h6>
-                <div class="footer__nav">
-                    <a href="/challenges">Challenges</a>
-                    <a href="/labs">Labs</a>
-                    <a href="/events">Events</a>
-                    <a href="/scoreboard">Scoreboard</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-12">
-                <div class="footer__content">
-                    <small class="footer__copyright">Powered by Live Hack, free software under GPL-3.0.</small>
-                </div>
-            </div>
+        <div class="footer__content">
+            <a href="/" class="header__brand">
+                <img src="/assets/logo-white.png" alt="" class="header__brand-logo" width="28" height="28">
+                <span class="header__brand-text">{{site_name}}</span>
+            </a>
+            <nav class="footer__links" aria-label="Footer">
+                <a href="/challenges">Challenges</a>
+                <a href="/labs">Labs</a>
+                <a href="/events">Events</a>
+                <a href="/scoreboard">Scoreboard</a>
+            </nav>
+            <small class="footer__copyright">Powered by Live Hack, free software under GPL-3.0.</small>
         </div>
     </div>
 </footer>
-<!-- end footer -->
-
-<!-- JS -->
-<script src="/assets/js/jquery-3.6.0.min.js"></script>
-<script src="/assets/js/bootstrap.bundle.min.js"></script>
-<script src="/assets/js/owl.carousel.min.js"></script>
-<script src="/assets/js/jquery.magnific-popup.min.js"></script>
-<script src="/assets/js/select2.min.js"></script>
-<script src="/assets/js/smooth-scrollbar.js"></script>
-<script src="/assets/js/jquery.countdown.min.js"></script>
-<script src="/assets/js/main.js"></script>
+<div class="toasts" aria-live="polite"></div>
