@@ -3,7 +3,7 @@ use crate::helper::template::{Vars, escape_html};
 use crate::helper::trace::trace_error;
 use crate::models::user;
 use crate::web::page::{PageResult, RouteResult, page_html};
-use crate::web::routes::{account, auth, challenges, home, manage, txt};
+use crate::web::routes::{account, auth, challenges, home, manage, score, txt};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, web};
 
@@ -17,7 +17,7 @@ async fn route(ctx: &Ctx, segs: &[&str]) -> PageResult {
         };
     }
     match segs {
-        [] => home::home(ctx),
+        [] => home::home(ctx).await,
         ["setup"] => Ok(RouteResult::Redirect("/".into())),
         ["auth", "login"] => auth::login_page(ctx),
         ["auth", "register"] => auth::register_page(ctx).await,
@@ -26,6 +26,8 @@ async fn route(ctx: &Ctx, segs: &[&str]) -> PageResult {
         ["challenges"] => challenges::list(ctx).await,
         ["challenges", slug] => challenges::detail(ctx, slug).await,
         ["challenges", slug, "files", file, _name] => challenges::file(ctx, slug, file).await,
+        ["scoreboard"] => score::scoreboard(ctx).await,
+        ["users", name] => score::profile(ctx, name).await,
         ["manage"] | ["manage", "challenges"] => manage::list(ctx).await,
         ["manage", "challenges", uuid] => manage::edit(ctx, uuid).await,
         ["robots.txt"] => Ok(txt::robot()),

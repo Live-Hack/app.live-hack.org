@@ -11,6 +11,7 @@ const SETTINGS: &[(&str, Option<&[&str]>)] = &[
     ("site_name", None),
     ("flag_format", None),
     ("registration", Some(&["open", "invite", "closed"])),
+    ("scoreboard", Some(&["visible", "hidden"])),
 ];
 
 pub fn get_settings(ctx: &Ctx) -> ApiResult {

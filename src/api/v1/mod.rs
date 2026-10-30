@@ -5,3 +5,4 @@ pub mod challenges;
 pub mod core;
 pub mod main;
 pub mod manage;
+pub mod score;

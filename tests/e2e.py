@@ -571,6 +571,74 @@ def test_manage():
     check(sql("SELECT status FROM challs WHERE slug='cli-crypto'") == 'published', 'CLI --publish')
 
 
+# ---------------------------------------------------------------- 05 scoreboard
+def test_scoreboard():
+    section('05 scoreboard & profiles')
+    admin = Client(); admin.api('/auth/login', {'login': 'admin', 'password': PASSWORD})
+    p1 = Client(); p1.api('/auth/login', {'login': 'player1', 'password': PASSWORD})
+    time.sleep(5.2)  # rankings are cached 5 s; earlier pages may have warmed it
+    s, d, _ = p1.api('/scoreboard')
+    st = d.get('standings', [])
+    names = [e['name'] for e in st]
+    check(s == 200 and names[:1] == ['player1'] and st[0]['score'] == 951, f'practice ranking by points ({names[:3]})')
+    check('player3' not in names and 'admin' not in names, 'organizers stay off the practice scoreboard')
+    check(d['me']['rank'] == 1, 'API returns my rank')
+
+    a = Client(); a.api('/auth/register', {'username': 'tie-a', 'password': PASSWORD})
+    b = Client(); b.api('/auth/register', {'username': 'tie-b', 'password': PASSWORD})
+    rsa = sql("SELECT uuid FROM challs WHERE slug='rsa-easy'")
+    a.api(f'/challenges/{rsa}/submit', {'flag': 'lh{case}'})
+    time.sleep(0.05)
+    b.api(f'/challenges/{rsa}/submit', {'flag': 'lh{case}'})
+    time.sleep(5.2)  # cache TTL
+    s, d, _ = p1.api('/scoreboard')
+    names = [e['name'] for e in d['standings']]
+    check(names.index('tie-a') < names.index('tie-b'), 'ties broken by earliest solve')
+    check('tie-a' in names, 'new solves appear after the cache window')
+    s, d, _ = p1.api('/scoreboard?category=crypto')
+    check([e['name'] for e in d['standings']][:3] == ['player1', 'tie-a', 'tie-b'] and d['standings'][0]['score'] == 300, 'category scoreboard')
+
+    s, _, b_ = p1.get('/scoreboard')
+    check(s == 200 and 'class="is-me"' in b_ and 'tie-a' in b_ and '/users/player1' in b_, 'scoreboard page highlights me')
+    s, _, b_ = p1.get('/scoreboard?category=crypto')
+    check('is-active" href="/scoreboard?category=crypto"' in b_, 'category tab active')
+
+    sql("UPDATE users SET banned_at=NOW() WHERE username='tie-b'")
+    time.sleep(5.2)
+    s, d, _ = p1.api('/scoreboard')
+    check('tie-b' not in [e['name'] for e in d['standings']], 'banned players removed from the board')
+    s, _, _ = p1.get('/users/tie-b')
+    check(s == 404, 'banned profile hidden')
+    sql("UPDATE users SET banned_at=NULL WHERE username='tie-b'")
+
+    s, _, b_ = p1.get('/users/player1')
+    check(s == 200 and '#1' in b_ and '951' in b_ and 'RSA baby' in b_ and 'bars__track' in b_, 'profile with rank, points, solves, categories')
+    check('Edit account' in b_, 'own profile links to settings')
+    s, _, b_ = p1.get('/users/tie-a')
+    check(s == 200 and 'Edit account' not in b_, 'other profile')
+    s, _, _ = p1.get('/users/nobody-at-all')
+    check(s == 404, 'unknown profile 404')
+    s, d, _ = p1.api('/users/player1')
+    check(s == 200 and d['score'] == 951 and len(d['solves']) == 4, 'profile API')
+
+    s, _, b_ = p1.get('/')
+    check('Welcome back, player1' in b_ and 'Up next' in b_ and 'Latest solves' in b_ and 'Top 10' in b_, 'signed-in dashboard')
+    check('tie-b' in b_ and 'solved' in b_, 'activity feed lists recent solves')
+    s, _, b_ = Client().get('/')
+    check('home__title' in b_ and 'Welcome back' not in b_, 'anonymous home is the landing page')
+
+    admin.api('/admin/settings', {'scoreboard': 'hidden'})
+    s, _, b_ = p1.get('/scoreboard')
+    check('hidden the scoreboard' in b_, 'hidden scoreboard page for players')
+    s, d, _ = p1.api('/scoreboard')
+    check(s == 403, 'hidden scoreboard API for players')
+    s, _, b_ = p1.get('/users/tie-a')
+    check('951' not in b_ and '>—<' in b_, "others' ranks hidden too")
+    s, d, _ = admin.api('/scoreboard')
+    check(s == 200, 'admin still sees the scoreboard')
+    admin.api('/admin/settings', {'scoreboard': 'visible'})
+
+
 # ---------------------------------------------------------------- tenancy
 def test_tenancy():
     section('01 multi-tenant isolation')
@@ -599,7 +667,7 @@ def test_tenancy():
 
 if __name__ == '__main__':
     t0 = time.time()
-    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_tenancy]:
+    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_scoreboard, test_tenancy]:
         try:
             fn()
         except Exception as e:  # a crash in a section is a failure, keep going

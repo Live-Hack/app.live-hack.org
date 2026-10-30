@@ -1,5 +1,5 @@
 use crate::api::v1::core::{self, ApiResult, err, not_found, respond};
-use crate::api::v1::{account, admin, auth, challenges, manage};
+use crate::api::v1::{account, admin, auth, challenges, manage, score};
 use crate::helper::request::{Ctx, build, get_request_body};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, post, web};
@@ -18,6 +18,8 @@ async fn route_get(ctx: &Ctx, segs: &[&str]) -> ApiResult {
         ["account", "sessions"] => account::sessions(ctx).await,
         ["admin", "settings"] => admin::get_settings(ctx),
         ["challenges"] => challenges::list(ctx).await,
+        ["scoreboard"] => score::scoreboard(ctx).await,
+        ["users", name] => score::profile(ctx, name).await,
         _ => Err(not_found()),
     }
 }

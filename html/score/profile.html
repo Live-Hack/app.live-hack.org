@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="profile-head">
+            <span class="avatar avatar--xl" aria-hidden="true">{{initial}}</span>
+            <div>
+                <h1 class="page-head__title">{{username}}</h1>
+                <p class="page-head__text"><span class="badge badge--muted">{{role}}</span> member since {{member_since}}</p>
+            </div>
+            <span class="spacer"></span>
+            {{{edit}}}
+        </div>
+        <div class="stats">
+            <div class="stat"><b>{{rank}}</b><span>rank</span></div>
+            <div class="stat"><b>{{score}}</b><span>points</span></div>
+            <div class="stat"><b>{{solves}}</b><span>solves</span></div>
+        </div>
+        <div class="grid grid--side profile-grid">
+            <section class="panel">
+                <h2 class="panel__title">Solved challenges</h2>
+                <div class="table-wrap table-wrap--flat">
+                    <table class="table">
+                        <thead><tr><th>Challenge</th><th>Category</th><th class="num">Points</th><th>Solved</th></tr></thead>
+                        <tbody>{{{table}}}</tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="panel">
+                <h2 class="panel__title">By category</h2>
+                <ul class="bars">{{{bars}}}</ul>
+            </section>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>
