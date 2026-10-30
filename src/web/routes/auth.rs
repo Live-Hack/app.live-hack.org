@@ -43,7 +43,7 @@ pub async fn register_page(ctx: &Ctx) -> PageResult {
     };
     match blocked {
         Some(msg) => {
-            v.set("message", msg);
+            v.set("message", msg).set("heading", "Sign up");
             page(ctx, "auth/register_closed.html", "Sign up", v)
         }
         None => page(ctx, "auth/register.html", "Sign up", v),
@@ -58,7 +58,8 @@ pub async fn reset_page(ctx: &Ctx) -> PageResult {
         v.set(
             "message",
             "This reset link is invalid or expired. Ask an organizer for a new one.",
-        );
+        )
+        .set("heading", "Reset password");
         return page(ctx, "auth/register_closed.html", "Reset password", v);
     }
     page(ctx, "auth/reset.html", "Reset password", v)

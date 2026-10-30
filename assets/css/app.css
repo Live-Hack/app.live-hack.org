@@ -331,3 +331,25 @@ a.tile:hover { transform: translateY(-3px); border-color: rgba(97, 100, 255, .55
 .bars__track i { display: block; height: 100%; border-radius: inherit; background: var(--cat, var(--bg-accent)); transform-origin: left; animation: lh-grow .7s var(--ease) both; }
 .bars__val { grid-column: 2; color: var(--text-secondary); font-size: 12px; }
 @keyframes lh-grow { from { transform: scaleX(0); } to { transform: none; } }
+
+/* ---------- events ---------- */
+.event-tile .tile__title { font-size: 19px; }
+.event-hero { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; margin: 8px 0 24px; padding: 28px; border-radius: var(--radius); border: 1px solid var(--bg-secondary); background: radial-gradient(120% 140% at 100% 0%, rgba(97,100,255,.18), transparent 55%), var(--bg-main); animation: lh-rise .45s var(--ease) both; }
+.event-hero__title { font: 700 34px/1.15 var(--font-ui); color: #fff; margin: 10px 0 6px; letter-spacing: -.02em; }
+.event-hero p { margin: 0; }
+.countdown { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.countdown__label { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-secondary); }
+.countdown__value { font: 600 30px/1 var(--font-mono); color: #fff; font-variant-numeric: tabular-nums; }
+.countdown[data-countdown=""] .countdown__value { display: none; }
+.badge--live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: lh-pulse 1.6s infinite; }
+@keyframes lh-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+.notice--event { border-color: rgba(97,100,255,.35); background: rgba(97,100,255,.08); color: #c9caff; }
+.notice--event a { color: #fff; }
+.team-card { display: flex; flex-direction: column; gap: 12px; }
+.team-card__name { font: 600 18px var(--font-ui); color: #fff; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--bg-secondary); }
+.registered { color: var(--ok); margin: 0; }
+.table--compact td { padding: 8px 10px; }
+.table--compact td:last-child { display: none; }
+[data-needs-saved=""] { display: none; }

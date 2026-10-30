@@ -76,7 +76,9 @@ pub async fn ranking(q: &Query<'_>) -> DbResult<Arc<Vec<Entry>>> {
         (
             "JOIN users u ON u.uuid = s.scope_key",
             "u.username",
-            "u.banned_at IS NULL AND (u.role = 'player' OR s.event_key <> '')",
+            "u.banned_at IS NULL AND (u.role = 'player' OR s.event_key <> '') \
+             AND NOT EXISTS(SELECT 1 FROM events_players ep WHERE ep.event_uuid = s.event_uuid \
+                            AND ep.user_uuid = s.user_uuid AND ep.banned_at IS NOT NULL)",
         )
     };
     let rows: Vec<Row> = get_conn()

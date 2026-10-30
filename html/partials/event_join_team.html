@@ -1,0 +1,14 @@
+<div class="stack">
+    <form class="stack" data-api="/api/v1/events/{{slug}}/teams" data-reload>
+        <label class="field"><span>Create a team</span><input class="input" name="name" placeholder="Team name" required minlength="2" maxlength="32"></label>
+        {{{code_field}}}
+        <p class="form__msg" data-msg role="alert"></p>
+        <button class="btn" type="submit">Create team</button>
+    </form>
+    <div class="or"><span>or</span></div>
+    <form class="stack" data-api="/api/v1/events/{{slug}}/teams/join" data-reload>
+        <label class="field"><span>Join with an invite code</span><input class="input mono" name="invite" placeholder="ABCD2345EFGH6789" required autocomplete="off"></label>
+        <p class="form__msg" data-msg role="alert"></p>
+        <button class="btn btn--ghost" type="submit">Join team</button>
+    </form>
+</div>

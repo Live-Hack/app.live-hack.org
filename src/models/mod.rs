@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod chall;
+pub mod event;
 pub mod manage;
 pub mod score;
 pub mod session;

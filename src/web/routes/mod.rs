@@ -1,7 +1,9 @@
 pub mod account;
 pub mod auth;
 pub mod challenges;
+pub mod events;
 pub mod home;
 pub mod manage;
+pub mod manage_events;
 pub mod score;
 pub mod txt;

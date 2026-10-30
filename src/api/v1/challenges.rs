@@ -2,6 +2,7 @@ use crate::api::v1::core::{ApiResult, bad, err, not_found, ok, require_user, too
 use crate::helper::ratelimit;
 use crate::helper::request::{Ctx, field_raw};
 use crate::models::chall::{self, Filter};
+use crate::models::event;
 use crate::models::solve::{self, Scope, check_flag};
 use crate::models::user::Role;
 use actix_web::http::StatusCode;
@@ -22,13 +23,17 @@ pub async fn list(ctx: &Ctx) -> ApiResult {
     ok(json!({ "challenges": cards, "total": total, "page": f.page }))
 }
 
-/// Which scoreboard a solve on this challenge counts for, for this user.
-/// Practice for now; events plug in here.
-async fn resolve_scope(
-    _ctx: &Ctx,
-    _chall: &chall::Chall,
+/// Which scoreboard a solve on this challenge counts for: the live event the user plays it
+/// in, else practice if the challenge is in practice. None = not open to this user now.
+pub async fn resolve_scope(
+    ctx: &Ctx,
+    c: &chall::Chall,
+    user: &str,
 ) -> Result<Option<Scope>, crate::api::v1::core::ApiError> {
-    Ok(Some(Scope::default()))
+    if let Some((_, scope)) = event::live_scope(ctx.tenant_uuid(), &c.uuid, user).await? {
+        return Ok(Some(scope));
+    }
+    Ok(c.practice.then(Scope::default))
 }
 
 pub async fn submit(ctx: &Ctx, uuid: &str, body: &Value) -> ApiResult {
@@ -65,7 +70,7 @@ pub async fn submit(ctx: &Ctx, uuid: &str, body: &Value) -> ApiResult {
         );
     }
 
-    let Some(scope) = resolve_scope(ctx, &c).await? else {
+    let Some(scope) = resolve_scope(ctx, &c, &u.uuid).await? else {
         return Err(err(
             StatusCode::FORBIDDEN,
             "This challenge is not open for submissions right now.",
@@ -88,10 +93,15 @@ pub async fn submit(ctx: &Ctx, uuid: &str, body: &Value) -> ApiResult {
         return ok(json!({ "status": "already_solved", "message": "Already solved." }));
     }
     let first_blood = solve::solve_count(&c.uuid, scope.event_key()).await? == 1;
+    let points = match &scope.event_uuid {
+        Some(ev) => event::chall_points(ev, &c.uuid).await?.unwrap_or(c.points),
+        None => c.points,
+    };
     ok(json!({
         "status": "correct",
-        "points": c.points,
+        "points": points,
         "first_blood": first_blood,
-        "message": if first_blood { format!("First blood! +{} points", c.points) } else { format!("Correct! +{} points", c.points) },
+        "event": scope.event_uuid.is_some(),
+        "message": if first_blood { format!("First blood! +{points} points") } else { format!("Correct! +{points} points") },
     }))
 }

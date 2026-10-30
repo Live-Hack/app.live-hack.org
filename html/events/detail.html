@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <ul class="breadcrumb">
+            <li class="breadcrumb__item"><a href="/events">Events</a></li>
+            <li class="breadcrumb__item breadcrumb__item--active">{{ev_title}}</li>
+        </ul>
+        <section class="event-hero">
+            <div class="event-hero__main">
+                <div class="row-flex">{{{badge}}} {{{frozen}}} <span class="muted small">{{mode}} · {{participants}} registered</span></div>
+                <h1 class="event-hero__title">{{ev_title}}</h1>
+                <p class="muted"><time datetime="{{starts}}">{{starts}}</time> → <time datetime="{{ends}}">{{ends}}</time></p>
+            </div>
+            <div class="countdown" data-countdown="{{count_to}}">
+                <span class="countdown__label">{{count_label}}</span>
+                <span class="countdown__value" data-countdown-value>—</span>
+            </div>
+        </section>
+
+        <div class="grid grid--side">
+            <div class="stack">
+                <section class="chall-card">
+                    <div class="chall-card__header"><h2>About</h2></div>
+                    <div class="chall-card__body md">{{{description}}}</div>
+                </section>
+                <div class="section-head"><h2>Challenges</h2></div>
+                <div class="grid grid--cards">{{{challs}}}</div>
+            </div>
+            <aside class="stack">
+                <section class="panel">
+                    <h2 class="panel__title">Take part</h2>
+                    {{{join}}}
+                </section>
+                <section class="panel">
+                    <div class="section-head section-head--in"><h2>Top 10</h2><a href="/events/{{slug}}/scoreboard">Full scoreboard →</a></div>
+                    <div class="table-wrap table-wrap--flat">
+                        <table class="table table--board table--compact">
+                            <tbody>{{{top}}}</tbody>
+                        </table>
+                    </div>
+                </section>
+                {{{manage}}}
+            </aside>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

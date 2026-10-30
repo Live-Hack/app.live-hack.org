@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <ul class="breadcrumb">
+            <li class="breadcrumb__item"><a href="/events">Events</a></li>
+            <li class="breadcrumb__item"><a href="/events/{{slug}}">{{ev_title}}</a></li>
+            <li class="breadcrumb__item breadcrumb__item--active">Scoreboard</li>
+        </ul>
+        <div class="page-head page-head--row">
+            <h1 class="page-head__title">{{ev_title}}</h1>
+            {{{ctftime}}}
+        </div>
+        {{{frozen}}}
+        <div class="table-wrap">
+            <table class="table table--board">
+                <thead><tr><th>#</th><th>{{who}}</th><th class="num">Points</th><th class="num">Solves</th><th>Last solve</th></tr></thead>
+                <tbody>{{{rows}}}</tbody>
+            </table>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

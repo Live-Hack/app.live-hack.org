@@ -1,5 +1,5 @@
 use crate::api::v1::core::{self, ApiResult, err, not_found, respond};
-use crate::api::v1::{account, admin, auth, challenges, manage, score};
+use crate::api::v1::{account, admin, auth, challenges, events, manage, manage_events, score};
 use crate::helper::request::{Ctx, build, get_request_body};
 use actix_web::http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, get, post, web};
@@ -19,6 +19,8 @@ async fn route_get(ctx: &Ctx, segs: &[&str]) -> ApiResult {
         ["admin", "settings"] => admin::get_settings(ctx),
         ["challenges"] => challenges::list(ctx).await,
         ["scoreboard"] => score::scoreboard(ctx).await,
+        ["events", slug, "scoreboard"] => events::scoreboard(ctx, slug).await,
+        ["events", slug, "ctftime"] => events::ctftime(ctx, slug).await,
         ["users", name] => score::profile(ctx, name).await,
         _ => Err(not_found()),
     }
@@ -47,6 +49,21 @@ async fn route_post(ctx: &Ctx, segs: &[&str], body: &Value) -> ApiResult {
             manage::remove_author(ctx, uuid, name).await
         }
         ["manage", "preview"] => manage::preview(ctx, body),
+        ["events", slug, "register"] => events::register(ctx, slug, body).await,
+        ["events", slug, "teams"] => events::create_team(ctx, slug, body).await,
+        ["events", slug, "teams", "join"] => events::join_team(ctx, slug, body).await,
+        ["events", slug, "teams", "leave"] => events::leave_team(ctx, slug).await,
+        ["events", slug, "teams", "kick"] => events::kick(ctx, slug, body).await,
+        ["manage", "events"] => manage_events::create(ctx, body).await,
+        ["manage", "events", uuid] => manage_events::update(ctx, uuid, body).await,
+        ["manage", "events", uuid, "delete"] => manage_events::delete(ctx, uuid).await,
+        ["manage", "events", uuid, "challenges"] => manage_events::add_chall(ctx, uuid, body).await,
+        ["manage", "events", uuid, "challenges", chall, "remove"] => {
+            manage_events::remove_chall(ctx, uuid, chall).await
+        }
+        ["manage", "events", uuid, "disqualify", target] => {
+            manage_events::disqualify(ctx, uuid, target, body).await
+        }
         ["admin", "settings"] => admin::set_settings(ctx, body).await,
         ["admin", "invites"] => admin::create_invite(ctx, body).await,
         ["admin", "users", uuid, "reset-link"] => admin::reset_link(ctx, uuid).await,

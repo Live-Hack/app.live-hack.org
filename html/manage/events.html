@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <div class="page-head page-head--row">
+            <div>
+                <h1 class="page-head__title">Manage events</h1>
+                <p class="page-head__text">Schedule time-boxed CTFs and pick their challenges.</p>
+            </div>
+            <a class="btn" href="/manage/events/new">New event</a>
+        </div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Event</th><th>State</th><th>Starts</th><th>Ends</th><th>Mode</th><th class="num">Registered</th><th></th></tr></thead>
+                <tbody>{{{rows}}}</tbody>
+            </table>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

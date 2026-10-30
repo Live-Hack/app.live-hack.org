@@ -29,6 +29,13 @@ pub fn spawn_background_tasks() {
             if let Err(e) = tenant::reload().await {
                 trace_error(format!("tenant reload: {e}"));
             }
+            match crate::models::event::close_ended(None).await {
+                Ok(closed) if !closed.is_empty() => {
+                    trace_logs(format!("closed {} ended event(s)", closed.len()))
+                }
+                Ok(_) => {}
+                Err(e) => trace_error(format!("closing events: {e}")),
+            }
             if n.is_multiple_of(20) {
                 let _ = ratelimit::cleanup().await;
                 let _ = session::cleanup().await;

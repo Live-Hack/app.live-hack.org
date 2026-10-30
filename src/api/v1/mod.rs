@@ -3,6 +3,8 @@ pub mod admin;
 pub mod auth;
 pub mod challenges;
 pub mod core;
+pub mod events;
 pub mod main;
 pub mod manage;
+pub mod manage_events;
 pub mod score;

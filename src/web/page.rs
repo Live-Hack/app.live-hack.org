@@ -58,6 +58,9 @@ fn base_vars(ctx: &Ctx, title: &str) -> Vars {
                 links.push_str(
                     r#"<li><a href="/manage/challenges"><span>Manage challenges</span></a></li>"#,
                 );
+                links.push_str(
+                    r#"<li><a href="/manage/events"><span>Manage events</span></a></li>"#,
+                );
             }
             if u.role >= Role::Admin {
                 links.push_str(r#"<li><a href="/admin"><span>Admin</span></a></li>"#);

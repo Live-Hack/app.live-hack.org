@@ -48,6 +48,7 @@
       if (el.type === 'checkbox') out[el.name] = el.checked;
       else if (el.type === 'radio') { if (el.checked) out[el.name] = el.value; }
       else if (el.type === 'number') out[el.name] = el.value === '' ? null : Number(el.value);
+      else if (el.type === 'datetime-local') out[el.name] = el.value ? new Date(el.value).toISOString() : '';
       else out[el.name] = el.value;
     }
     return out;
@@ -308,6 +309,35 @@
       f.addEventListener('input', () => { dirty = true; if (note) note.hidden = false; });
       f.addEventListener('submit', () => { dirty = false; setTimeout(() => { if (note) note.hidden = true; }, 300); });
       window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+    });
+  });
+
+  // ---- dates: inputs show local time, the server stores UTC ----
+  const pad = (n) => String(n).padStart(2, '0');
+  document.addEventListener('DOMContentLoaded', () => {
+    $$('input[type=datetime-local][data-utc]').forEach((el) => {
+      const d = new Date(el.dataset.utc);
+      if (!el.dataset.utc || isNaN(d)) return;
+      el.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    });
+  });
+
+  // ---- countdowns: <div data-countdown="ISO"><span data-countdown-value> ; reloads at zero ----
+  document.addEventListener('DOMContentLoaded', () => {
+    $$('[data-countdown]').forEach((box) => {
+      const target = Date.parse(box.dataset.countdown);
+      const out = $('[data-countdown-value]', box);
+      if (isNaN(target) || !out) return;
+      const tick = () => {
+        let s = Math.max(0, Math.floor((target - Date.now()) / 1000));
+        const d = Math.floor(s / 86400); s %= 86400;
+        const h = Math.floor(s / 3600); s %= 3600;
+        const m = Math.floor(s / 60); s %= 60;
+        out.textContent = (d ? `${d}d ` : '') + `${pad(h)}:${pad(m)}:${pad(s)}`;
+        if (target <= Date.now()) { clearInterval(timer); setTimeout(() => location.reload(), 1500); }
+      };
+      const timer = setInterval(tick, 1000);
+      tick();
     });
   });
 

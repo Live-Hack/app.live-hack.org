@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{inject_head}}
+</head>
+<body>
+{{inject_header}}
+<main class="main">
+    <div class="container">
+        <ul class="breadcrumb">
+            <li class="breadcrumb__item"><a href="/manage/events">Manage events</a></li>
+            <li class="breadcrumb__item breadcrumb__item--active">{{heading}}</li>
+        </ul>
+        <div class="page-head page-head--row">
+            <div>
+                <h1 class="page-head__title">{{heading}}</h1>
+                <p class="page-head__text">{{{badge}}} <span class="mono">{{slug}}</span></p>
+            </div>
+        </div>
+        <div class="grid grid--side">
+            <form class="panel" data-api="{{action}}" {{{then}}} data-dirty>
+                <h2 class="panel__title">Event</h2>
+                <div class="stack">
+                    <label class="field"><span>Title</span><input class="input" name="title" value="{{ev_title}}" required maxlength="120"></label>
+                    <label class="field"><span>Description (markdown)</span><textarea class="textarea" name="description" rows="8" placeholder="Rules, prizes, contact…">{{description}}</textarea></label>
+                    <div class="fields">
+                        <label class="field"><span>Starts (your time)</span><input class="input" type="datetime-local" name="starts_at" data-utc="{{starts_at}}" required></label>
+                        <label class="field"><span>Ends (your time)</span><input class="input" type="datetime-local" name="ends_at" data-utc="{{ends_at}}" required></label>
+                        <label class="field"><span>Freeze scoreboard at</span><input class="input" type="datetime-local" name="freeze_at" data-utc="{{freeze_at}}"><small>Optional. Players see the board as it was at this time until the end.</small></label>
+                    </div>
+                    <div class="fields">
+                        <label class="field"><span>Mode</span><select class="select" name="team_mode">{{{mode_options}}}</select></label>
+                        <label class="field"><span>Max team size</span><input class="input" type="number" name="max_team_size" min="1" max="50" value="{{max_team_size}}"></label>
+                    </div>
+                    <div class="fields">
+                        <label class="field"><span>Registration</span><select class="select" name="registration">{{{reg_options}}}</select></label>
+                        <label class="field"><span>Registration code</span><input class="input" name="join_code" value="{{join_code}}" maxlength="64" autocomplete="off"><small>Only used when registration needs a code.</small></label>
+                    </div>
+                    <div class="fields">
+                        <label class="field"><span>When it ends, its challenges</span><select class="select" name="after_end">{{{after_options}}}</select></label>
+                        <label class="field"><span>Visibility</span><select class="select" name="status">{{{status_options}}}</select></label>
+                    </div>
+                    <p class="form__msg" data-msg role="alert"></p>
+                    <div class="row-flex"><button class="btn" type="submit">Save</button><span class="muted small" data-dirty-note hidden>Unsaved changes</span></div>
+                </div>
+            </form>
+            <div class="stack" data-needs-saved="{{uuid}}">
+                <section class="panel">
+                    <h2 class="panel__title">Challenges</h2>
+                    <ul class="list-rows">{{{picked}}}</ul>
+                    <form class="stack" data-api="/api/v1/manage/events/{{uuid}}/challenges" data-reload>
+                        <select class="select" name="chall" required><option value="">Add a challenge…</option>{{{chall_options}}}</select>
+                        <div class="row-flex"><input class="input spacer" type="number" name="points" min="0" placeholder="Points for this event (optional)"><button class="btn btn--ghost" type="submit">Add</button></div>
+                        <small class="muted">Adding a challenge to an upcoming or live event takes it out of practice until the event ends.</small>
+                    </form>
+                </section>
+                <section class="panel">
+                    <h2 class="panel__title">Participants</h2>
+                    <ul class="list-rows">{{{people}}}</ul>
+                </section>
+                <div class="row-flex">{{{delete}}}</div>
+            </div>
+        </div>
+    </div>
+</main>
+{{inject_footer}}
+</body>
+</html>

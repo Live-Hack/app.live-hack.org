@@ -3,6 +3,8 @@ use crate::helper::request::Ctx;
 use crate::helper::storage;
 use crate::helper::template::{Vars, render};
 use crate::models::chall::{self, Card, DIFFICULTIES, Filter};
+use crate::models::event::{self, Event};
+use crate::models::solve::Scope;
 use crate::models::user::Role;
 use crate::web::page::{PageResult, RouteResult, encode, page, require_login};
 use std::fmt::Write;
@@ -195,11 +197,12 @@ fn human_size(n: i64) -> String {
     }
 }
 
-/// Organizers see drafts; players only published challenges.
+/// Organizers see drafts; players see published practice challenges and those of a live
+/// event they take part in. Returns the challenge, organizer flag and the scope it counts in.
 async fn visible(
     ctx: &Ctx,
     slug: &str,
-) -> Result<Option<(chall::Chall, bool)>, mysql_async::Error> {
+) -> Result<Option<(chall::Chall, bool, Scope, Option<Event>)>, mysql_async::Error> {
     let Some(user) = &ctx.user else {
         return Ok(None);
     };
@@ -207,11 +210,15 @@ async fn visible(
         return Ok(None);
     };
     let organizer = ctx.has_role(Role::Admin) || chall::is_author(&c.uuid, &user.uuid).await?;
-    if c.status == "published" || organizer {
-        Ok(Some((c, organizer)))
-    } else {
-        Ok(None)
+    let live = event::live_scope(ctx.tenant_uuid(), &c.uuid, &user.uuid).await?;
+    let open = c.status == "published" && (c.practice || live.is_some());
+    if !open && !organizer {
+        return Ok(None);
     }
+    Ok(Some(match live {
+        Some((ev, scope)) => (c, organizer, scope, Some(ev)),
+        None => (c, organizer, Scope::default(), None),
+    }))
 }
 
 pub async fn detail(ctx: &Ctx, slug: &str) -> PageResult {
@@ -219,11 +226,18 @@ pub async fn detail(ctx: &Ctx, slug: &str) -> PageResult {
         Ok(u) => u,
         Err(r) => return Ok(r),
     };
-    let Some((c, _organizer)) = visible(ctx, slug).await? else {
+    let Some((c, _organizer, scope, ev)) = visible(ctx, slug).await? else {
         return Ok(RouteResult::NotFound);
     };
-    let (solvers, solves) = chall::solvers(&c.uuid, "", 10).await?;
-    let solved_at = chall::solved_at(&c.uuid, "", &user.uuid).await?;
+    let (solvers, solves) = chall::solvers(&c.uuid, scope.event_key(), 10).await?;
+    let solved_at =
+        chall::solved_at(&c.uuid, scope.event_key(), scope.scope_key(&user.uuid)).await?;
+    let points = match &ev {
+        Some(e) => event::chall_points(&e.uuid, &c.uuid)
+            .await?
+            .unwrap_or(c.points),
+        None => c.points,
+    };
     let files = chall::files(&c.uuid).await?;
     let authors = chall::author_names(&c.uuid).await?;
 
@@ -277,7 +291,7 @@ pub async fn detail(ctx: &Ctx, slug: &str) -> PageResult {
         .set("category", c.category.as_str())
         .set("cat_class", cat_class(&c.category))
         .set("difficulty", c.difficulty.as_str())
-        .set("points", c.points.to_string())
+        .set("points", points.to_string())
         .set("solves", solves.to_string())
         .set("description", markdown::render(&c.description))
         .set("files", files_html)
@@ -305,6 +319,17 @@ pub async fn detail(ctx: &Ctx, slug: &str) -> PageResult {
             );
         }
     }
+    if let Some(e) = &ev {
+        let who = if e.team_mode { "your team" } else { "you" };
+        v.set(
+            "event_banner",
+            format!(
+                r#"<div class="notice notice--event">Part of <a href="/events/{}"><b>{}</b></a>: a solve here counts for {who} on the event scoreboard.</div>"#,
+                e.slug,
+                crate::helper::template::escape_html(&e.title)
+            ),
+        );
+    }
     if c.status != "published" {
         v.set("notice", format!(r#"<div class="notice">This challenge is a <b>{}</b>. Only organizers can see it; flags you submit here are checked but not recorded.</div>"#, c.status));
         if solved_at.is_none() {
@@ -331,7 +356,7 @@ pub async fn file(ctx: &Ctx, slug: &str, file_uuid: &str) -> PageResult {
     if let Err(r) = require_login(ctx) {
         return Ok(r);
     }
-    let Some((c, _)) = visible(ctx, slug).await? else {
+    let Some((c, ..)) = visible(ctx, slug).await? else {
         return Ok(RouteResult::NotFound);
     };
     let Some(f) = chall::file(&c.uuid, file_uuid).await? else {

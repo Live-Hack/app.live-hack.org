@@ -1,0 +1,9 @@
+{{{banned}}}
+<div class="team-card">
+    <div class="row-flex"><b class="team-card__name">{{name}}</b><span class="spacer"></span><span class="muted small">{{count}} members</span></div>
+    <ul class="list-rows">{{{members}}}</ul>
+    <label class="field"><span>Invite code — share it with your teammates</span>
+        <div class="copy-box"><input class="input mono" id="team-code" value="{{code}}" readonly><button class="btn btn--ghost" type="button" data-copy="#team-code">Copy</button></div>
+    </label>
+    <button class="btn btn--ghost btn--sm" type="button" data-post="/api/v1/events/{{slug}}/teams/leave" data-confirm="Click again to leave" data-then="reload">Leave team</button>
+</div>

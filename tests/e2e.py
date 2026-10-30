@@ -639,6 +639,167 @@ def test_scoreboard():
     admin.api('/admin/settings', {'scoreboard': 'visible'})
 
 
+# ---------------------------------------------------------------- 06 events & teams
+def iso(dt):
+    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def test_events():
+    import datetime as _dt
+    section('06 events & teams')
+    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    H = _dt.timedelta(hours=1)
+    admin = Client(); admin.api('/auth/login', {'login': 'admin', 'password': PASSWORD})
+    p1 = Client(); p1.api('/auth/login', {'login': 'player1', 'password': PASSWORD})
+    ta = Client(); ta.api('/auth/login', {'login': 'tie-a', 'password': PASSWORD})
+    tb = Client(); tb.api('/auth/login', {'login': 'tie-b', 'password': PASSWORD})
+    p5 = Client(); p5.api('/auth/register', {'username': 'player5', 'password': PASSWORD})
+
+    s, d, _ = p1.api('/manage/events', {'title': 'x'})
+    check(s == 403, 'players cannot create events')
+    s, d, _ = admin.api('/manage/events', {'title': 'Bad', 'starts_at': iso(now + H), 'ends_at': iso(now)})
+    check(s == 400, 'end before start refused')
+    live = {'title': 'Winter <CTF>', 'description': 'Have **fun**', 'starts_at': iso(now - _dt.timedelta(minutes=5)), 'ends_at': iso(now + H),
+            'team_mode': True, 'max_team_size': 2, 'registration': 'open', 'after_end': 'practice', 'status': 'published'}
+    s, d, _ = admin.api('/manage/events', live)
+    check(s == 201 and d['slug'] == 'winter-ctf', 'admin creates a live team event')
+    ev, slug = d['uuid'], d['slug']
+    s, d, _ = admin.api('/manage/events', {**live, 'title': 'Spring CTF', 'starts_at': iso(now + 24 * H), 'ends_at': iso(now + 26 * H)})
+    up_slug = d['slug']
+    s, d, _ = admin.api('/manage/events', {**live, 'title': 'Hidden draft', 'status': 'draft'})
+    s, d, _ = admin.api('/manage/events', {**live, 'title': 'Solo cup', 'team_mode': False, 'registration': 'code', 'join_code': 'S3CRET'})
+    solo, solo_slug = d['uuid'], d['slug']
+
+    c1 = add_chall('ev-web', 'Event web', points=100, flag='LH{ev}')
+    c2 = add_chall('ev-pwn', 'Event pwn', category='pwn', points=200, flag='LH{pwn}')
+    s, d, _ = admin.api(f'/manage/events/{ev}/challenges', {'chall': c1, 'points': 777})
+    check(s == 200, 'add challenge with points override')
+    admin.api(f'/manage/events/{ev}/challenges', {'chall': c2})
+    admin.api(f'/manage/events/{solo}/challenges', {'chall': c2})
+    check(sql(f"SELECT practice FROM challs WHERE uuid='{c1}'") == '0', 'event challenge leaves practice')
+    s, _, b = p1.get('/challenges')
+    check('Event web' not in b, 'event challenge not in the practice list')
+    s, _, _ = p1.get('/challenges/ev-web')
+    check(s == 404, 'unregistered player cannot open an event challenge')
+    s, d, _ = p1.api(f'/challenges/{c1}/submit', {'flag': 'LH{ev}'})
+    check(s == 403, 'unregistered player cannot submit')
+
+    # pages
+    s, _, b = p1.get('/events')
+    check(s == 200 and 'Live now' in b and 'Winter &lt;CTF&gt;' in b and 'Spring CTF' in b and 'Hidden draft' not in b, 'events list (live first, drafts hidden)')
+    s, _, _ = p1.get('/events/hidden-draft')
+    check(s == 404, 'draft event hidden from players')
+    s, _, b = p1.get(f'/events/{slug}')
+    check('<title>Winter &lt;CTF&gt; · Test CTF</title>' in b, 'event page keeps the layout <title>')
+    check(s == 200 and 'Ends in' in b and 'Create team' in b and 'Register to play' in b and '<strong>fun</strong>' in b, 'live event page before joining')
+
+    # teams
+    s, d, _ = p1.api(f'/events/{slug}/teams', {'name': 'Red <Team>'})
+    check(s == 200 and len(d['team']['invite_code']) == 16, 'create team')
+    code = d['team']['invite_code']
+    s, d, _ = ta.api(f'/events/{slug}/teams', {'name': 'red <team>'})
+    check(s == 409, 'team names unique (case-insensitive)')
+    s, d, _ = p1.api(f'/events/{slug}/teams', {'name': 'Other'})
+    check(s == 409, 'one team per player per event')
+    s, d, _ = ta.api(f'/events/{slug}/teams/join', {'invite': 'NOPE'})
+    check(s == 404, 'bad invite code')
+    s, d, _ = ta.api(f'/events/{slug}/teams/join', {'invite': code.lower()})
+    check(s == 200, 'join with code (case-insensitive)')
+    s, d, _ = tb.api(f'/events/{slug}/teams/join', {'invite': code})
+    check(s == 409 and 'full' in d['error'], 'team size enforced')
+    s, d, _ = tb.api(f'/events/{slug}/teams', {'name': 'Blue'})
+    s, d, _ = ta.api(f'/events/{slug}/teams/kick', {'username': 'player1'})
+    check(s == 403, 'only the captain can kick')
+    s, _, b = p1.get(f'/events/{slug}')
+    check('Red &lt;Team&gt;' in b and code in b and 'Event web' in b and '777 pts' in b, 'team panel, invite code and challenges with event points')
+
+    # play
+    s, _, b = ta.get('/challenges/ev-web')
+    check(s == 200 and 'notice--event' in b and '777' in b, 'event challenge page for a member')
+    s, d, _ = ta.api(f'/challenges/{c1}/submit', {'flag': 'LH{ev}'})
+    check(d.get('status') == 'correct' and d['points'] == 777 and d['event'] is True and d['first_blood'] is True, 'solve counts for the event with override points')
+    s, d, _ = p1.api(f'/challenges/{c1}/submit', {'flag': 'LH{ev}'})
+    check(d.get('status') == 'already_solved', 'team solves are shared')
+    check(sql(f"SELECT COUNT(*) FROM challs_solved WHERE chall_uuid='{c1}' AND event_uuid='{ev}'") == '1', 'one solve row per team')
+    s, d, _ = ta.api(f'/events/{slug}/teams/leave', {})
+    check(s == 409, 'cannot leave a team that scored')
+    s, d, _ = tb.api(f'/challenges/{c2}/submit', {'flag': 'LH{pwn}'})
+    check(d.get('status') == 'correct', 'other team solves')
+    time.sleep(5.2)
+    s, d, _ = p1.api(f'/events/{slug}/scoreboard')
+    st = d['standings']
+    check(s == 200 and d['teams'] is True and [x['name'] for x in st] == ['Red <Team>', 'Blue'] and st[0]['score'] == 777, 'team scoreboard')
+    s, _, b = p1.get(f'/events/{slug}/scoreboard')
+    check('Red &lt;Team&gt;' in b and 'class="is-me"' in b, 'team scoreboard page escapes names, highlights my team')
+    s, d, _ = p1.api('/scoreboard')
+    check(all(x['score'] < 1700 for x in d['standings']) and next(x for x in d['standings'] if x['name'] == 'player1')['score'] == 951, 'event solves stay out of practice')
+
+    # freeze
+    admin.api(f'/manage/events/{ev}', {**live, 'starts_at': live['starts_at'], 'freeze_at': iso(_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(seconds=1))})
+    time.sleep(1.2)
+    s, d, _ = tb.api(f'/challenges/{c1}/submit', {'flag': 'LH{ev}'})
+    time.sleep(5.2)
+    s, d, _ = p1.api(f'/events/{slug}/scoreboard')
+    blue = next(x for x in d['standings'] if x['name'] == 'Blue')
+    check(d['frozen'] is True and blue['score'] == 200, 'frozen board hides solves after the freeze')
+    s, d, _ = admin.api(f'/events/{slug}/scoreboard')
+    blue = next(x for x in d['standings'] if x['name'] == 'Blue')
+    check(blue['score'] == 977, 'organizers see the live board')
+    admin.api(f'/manage/events/{ev}', {**live, 'freeze_at': ''})
+
+    # solo event with code
+    s, d, _ = p5.api(f'/events/{solo_slug}/register', {})
+    check(s == 403, 'solo event needs its code')
+    s, d, _ = p5.api(f'/events/{solo_slug}/register', {'code': 'S3CRET'})
+    check(s == 200, 'register with code')
+    s, d, _ = p5.api(f'/events/{solo_slug}/teams', {'name': 'x', 'code': 'S3CRET'})
+    check(s == 400, 'no teams in a solo event')
+    s, d, _ = p5.api(f'/challenges/{c2}/submit', {'flag': 'LH{pwn}'})
+    check(d.get('status') == 'correct' and d['event'] is True, 'solo event solve')
+
+    # disqualification
+    blue_uuid = sql("SELECT uuid FROM teams WHERE name='Blue'")
+    s, d, _ = ta.api(f'/manage/events/{ev}/disqualify/{blue_uuid}', {'disqualified': True})
+    check(s == 403, 'players cannot disqualify')
+    s, d, _ = admin.api(f'/manage/events/{ev}/disqualify/{blue_uuid}', {'disqualified': True})
+    check(s == 200, 'admin disqualifies a team')
+    time.sleep(5.2)
+    s, d, _ = p1.api(f'/events/{slug}/scoreboard')
+    check('Blue' not in [x['name'] for x in d['standings']], 'disqualified team off the board')
+    s, d, _ = tb.api(f'/challenges/{c2}/submit', {'flag': 'LH{pwn}'})
+    check(s == 403, 'disqualified team cannot submit')
+    s, _, b = tb.get(f'/events/{slug}')
+    check('disqualified' in b, 'disqualified team sees why')
+    p5_uuid = sql("SELECT uuid FROM users WHERE username='player5'")
+    s, d, _ = admin.api(f'/manage/events/{solo}/disqualify/{p5_uuid}', {'disqualified': True})
+    check(s == 200, 'admin disqualifies a solo player')
+
+    # CTFtime
+    s, d, _ = p1.api(f'/events/{slug}/ctftime')
+    check(s == 403, 'CTFtime feed closed while live')
+    s, d, _ = admin.api(f'/events/{slug}/ctftime')
+    check(s == 200 and d['standings'][0] == {'pos': 1, 'team': 'Red <Team>', 'score': 777}, 'CTFtime format')
+
+    # upcoming event
+    s, _, b = p1.get(f'/events/{up_slug}')
+    check('Starts in' in b and 'open when the event starts' in b, 'upcoming event page with countdown')
+    s, d, _ = p1.api(f'/events/{up_slug}/teams', {'name': 'Early birds'})
+    check(s == 200, 'register before the start')
+
+    # end of event: challenges move to practice, submissions become practice solves
+    admin.api(f'/manage/events/{ev}', {**live, 'ends_at': iso(_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(seconds=1)), 'starts_at': iso(now - 2 * H)})
+    deadline = time.time() + 40
+    while time.time() < deadline and sql(f"SELECT practice FROM challs WHERE uuid='{c1}'") != '1':
+        time.sleep(2)
+    check(sql(f"SELECT practice FROM challs WHERE uuid='{c1}'") == '1', 'ended event moves its challenges to practice')
+    s, d, _ = p1.api(f'/challenges/{c1}/submit', {'flag': 'LH{ev}'})
+    check(d.get('status') == 'correct' and d.get('event') is False, 'after the end solves count for practice')
+    s, d, _ = Client().api(f'/events/{slug}/ctftime')
+    check(s == 200 and d['standings'][0]['team'] == 'Red <Team>', 'public CTFtime feed after the end')
+    s, d, _ = tb.api(f'/events/{slug}/teams', {'name': 'Late'})
+    check(s == 403, 'no registration after the end')
+
+
 # ---------------------------------------------------------------- tenancy
 def test_tenancy():
     section('01 multi-tenant isolation')
@@ -667,7 +828,7 @@ def test_tenancy():
 
 if __name__ == '__main__':
     t0 = time.time()
-    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_scoreboard, test_tenancy]:
+    for fn in [test_foundations, test_auth, test_shell, test_challenges, test_manage, test_scoreboard, test_events, test_tenancy]:
         try:
             fn()
         except Exception as e:  # a crash in a section is a failure, keep going
